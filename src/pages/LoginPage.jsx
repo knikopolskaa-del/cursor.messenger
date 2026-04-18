@@ -1,13 +1,24 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { users } from "../mock.js";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useMessenger } from "../context/MessengerContext.jsx";
+import * as api from "../lib/api.js";
 import { userTypeLabel } from "../lib/utils.js";
 import { useForm, rules } from "../lib/validation.js";
 import { Card, Button, Input, Field } from "../components/ui.jsx";
 
-export default function LoginPage({ onLoginAs }) {
+const DEMO_ACCOUNTS = [
+  { email: "maria@example.com", role: "employee" },
+  { email: "ivan@example.com", role: "employee" },
+  { email: "anna@example.com", role: "admin" },
+  { email: "alex.contractor@example.com", role: "guest" },
+];
+
+export default function LoginPage() {
   const navigate = useNavigate();
-  const [notFound, setNotFound] = useState(false);
+  const { login, token, me, booting } = useMessenger();
+  const [apiError, setApiError] = useState(false);
+  const [apiErrorText, setApiErrorText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm({
@@ -24,20 +35,35 @@ export default function LoginPage({ onLoginAs }) {
     },
   });
 
-  function handleSubmit() {
+  if (booting) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-slate-950 text-sm text-white/60">
+        Загрузка...
+      </div>
+    );
+  }
+
+  if (token && me) {
+    return <Navigate to="/app" replace />;
+  }
+
+  async function handleSubmit() {
     form.touchAll();
-    setNotFound(false);
+    setApiError(false);
     if (!form.isValid) return;
 
-    const matched = users.find(
-      (u) => u.email.toLowerCase() === form.values.email.trim().toLowerCase(),
-    );
-    if (!matched) {
-      setNotFound(true);
-      return;
+    setSubmitting(true);
+    try {
+      await login(form.values.email.trim(), form.values.password);
+      navigate("/app", { replace: true });
+    } catch (e) {
+      setApiError(true);
+      setApiErrorText(
+        e.status === 401 ? "Неверный e-mail или пароль." : api.formatApiError(e),
+      );
+    } finally {
+      setSubmitting(false);
     }
-    onLoginAs(matched.id);
-    navigate("/app", { replace: true });
   }
 
   return (
@@ -54,7 +80,7 @@ export default function LoginPage({ onLoginAs }) {
               <Input
                 {...form.field("email")}
                 type="email"
-                placeholder="name@company.local"
+                placeholder="name@example.com"
               />
             </Field>
 
@@ -75,23 +101,24 @@ export default function LoginPage({ onLoginAs }) {
               </div>
             </Field>
 
-            {notFound && (
+            {apiError && (
               <div className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-300">
-                Пользователь с таким e-mail не найден.
+                {apiErrorText}
               </div>
             )}
 
-            <Button onClick={handleSubmit}>Войти</Button>
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? "Вход…" : "Войти"}
+            </Button>
 
-            {/* Подсказка с демо-аккаунтами */}
             <div className="rounded-lg bg-white/5 p-3 text-xs text-white/40">
-              <div className="mb-1 font-semibold text-white/55">Демо-аккаунты:</div>
-              {users.map((u) => (
-                <div key={u.id}>
-                  {u.email} — {userTypeLabel(u.userType)}
+              <div className="mb-1 font-semibold text-white/55">Демо-аккаунты (пароль один):</div>
+              {DEMO_ACCOUNTS.map((a) => (
+                <div key={a.email}>
+                  {a.email} — {userTypeLabel(a.role)}
                 </div>
               ))}
-              <div className="mt-1">Пароль — любой, от 6 символов.</div>
+              <div className="mt-1">Пароль: <span className="text-white/55">secret12</span></div>
             </div>
           </div>
         </Card>

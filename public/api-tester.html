@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Проверка API мессенджера</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --ok: #4ade80;
+      --err: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1rem 1.25rem 3rem;
+      line-height: 1.45;
+      max-width: 1200px;
+      margin-inline: auto;
+    }
+    h1 { font-size: 1.35rem; margin: 0 0 0.5rem; }
+    .hint { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.25rem; }
+    fieldset {
+      border: 1px solid #334155;
+      border-radius: 10px;
+      margin: 0 0 1rem;
+      padding: 0.75rem 1rem 1rem;
+      background: var(--card);
+    }
+    legend { padding: 0 0.4rem; color: var(--accent); font-weight: 600; }
+    label { display: inline-block; min-width: 7rem; color: var(--muted); font-size: 0.8rem; }
+    input[type="text"], input[type="password"] {
+      width: min(100%, 320px);
+      padding: 0.35rem 0.5rem;
+      border-radius: 6px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: var(--text);
+      margin: 0.2rem 0 0.5rem;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin: 0.35rem 0; }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.82rem;
+      background: #334155;
+      color: var(--text);
+    }
+    button:hover { background: #475569; }
+    button.primary { background: #0369a1; }
+    button.primary:hover { background: #0284c7; }
+    button.danger { background: #7f1d1d; }
+    button.danger:hover { background: #991b1b; }
+    #log {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 10px;
+      background: #020617;
+      border: 1px solid #334155;
+      font-family: ui-monospace, monospace;
+      font-size: 0.75rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 50vh;
+      overflow: auto;
+    }
+    .log-entry { margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #1e293b; }
+    .log-entry:last-child { border-bottom: none; }
+    .status-ok { color: var(--ok); }
+    .status-err { color: var(--err); }
+    .mono { font-family: ui-monospace, monospace; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>Проверка API</h1>
+  <p class="hint">
+    Откройте через Vite: <span class="mono">http://localhost:5173/api-tester.html</span>
+    (CORS разрешает этот origin). API: <span class="mono">npm run api</span> → порт 8000.
+    Для админ-кнопок войдите как <span class="mono">anna@example.com</span>.
+  </p>
+
+  <fieldset>
+    <legend>Настройки</legend>
+    <div class="row">
+      <label for="base">Base URL</label>
+      <input type="text" id="base" value="http://127.0.0.1:8000" />
+    </div>
+    <div class="row">
+      <label for="token">Bearer токен</label>
+      <input type="text" id="token" placeholder="после входа подставится автоматически" style="width:min(100%,560px)" />
+    </div>
+    <div class="row">
+      <button type="button" class="primary" id="btnSaveToken">Сохранить токен в браузере</button>
+      <button type="button" id="btnClearLog">Очистить лог</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Вход</legend>
+    <div class="row"><label>E-mail</label><input type="text" id="loginEmail" value="maria@example.com" /></div>
+    <div class="row"><label>Пароль</label><input type="password" id="loginPass" value="secret12" /></div>
+    <div class="row">
+      <button type="button" class="primary" id="btnLogin">Войти (POST /auth/login)</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Auth</legend>
+    <div class="row">
+      <button type="button" id="btnLogout">Выйти (POST /auth/logout)</button>
+    </div>
+    <div class="row">
+      <label>Токен инвайта</label>
+      <input type="text" id="inviteToken" value="inv_demo_complete" style="width:min(100%,240px)" />
+    </div>
+    <div class="row">
+      <button type="button" id="btnInviteComplete">Завершить инвайт (POST /auth/invite/complete)</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Пользователи</legend>
+    <div class="row">
+      <button type="button" id="btnMeGet">GET /me</button>
+      <button type="button" id="btnMePatch">PATCH /me (bio)</button>
+      <button type="button" id="btnMePatchName">PATCH /me (name — ошибка для не-админа)</button>
+    </div>
+    <div class="row">
+      <button type="button" id="btnUsersList">Список (GET /users)</button>
+      <label>user id</label>
+      <input type="text" id="userId" value="u_ivan" style="width:120px" />
+      <button type="button" id="btnUserGet">GET /users/:id</button>
+    </div>
+    <div class="row">
+      <button type="button" id="btnAdminCreateUser">POST /users (админ)</button>
+      <button type="button" id="btnAdminPatchUser">PATCH /users/:id (админ)</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Админ</legend>
+    <div class="row">
+      <label>user id</label>
+      <input type="text" id="deactivateUserId" value="u_ivan" style="width:120px" />
+      <button type="button" class="danger" id="btnDeactivate">POST /admin/users/:id/deactivate</button>
+    </div>
+    <div class="row">
+      <button type="button" id="btnAdminInvite">POST /admin/invites</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Workspace</legend>
+    <div class="row">
+      <button type="button" id="btnWorkspace">GET /workspace</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Каналы</legend>
+    <div class="row">
+      <button type="button" id="btnChannelsList">Список (GET /channels)</button>
+      <button type="button" id="btnChannelCreate">Создать (POST /channels)</button>
+    </div>
+    <div class="row">
+      <label>channel id</label>
+      <input type="text" id="channelId" value="c_general" style="width:140px" />
+      <button type="button" id="btnChannelGet">GET</button>
+      <button type="button" id="btnChannelPatch">PATCH</button>
+      <button type="button" class="danger" id="btnChannelDelete">DELETE</button>
+      <button type="button" id="btnChannelJoin">POST …/join</button>
+    </div>
+    <div class="row">
+      <label>user id (member)</label>
+      <input type="text" id="channelMemberUserId" value="u_guest" style="width:120px" />
+      <button type="button" id="btnChannelAddMember">POST …/members</button>
+      <button type="button" id="btnChannelRemoveMember">DELETE …/members/:userId</button>
+      <button type="button" id="btnChannelMembers">GET …/members</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Группы</legend>
+    <div class="row">
+      <button type="button" id="btnGroupsList">Список (GET /groups)</button>
+      <button type="button" id="btnGroupCreate">Создать (POST /groups)</button>
+    </div>
+    <div class="row">
+      <label>group id</label>
+      <input type="text" id="groupId" value="g_launch" style="width:120px" />
+      <button type="button" id="btnGroupGet">GET</button>
+      <button type="button" id="btnGroupPatch">PATCH</button>
+      <button type="button" class="danger" id="btnGroupDelete">DELETE</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Личные диалоги</legend>
+    <div class="row">
+      <button type="button" id="btnDirectsList">Список (GET /directs)</button>
+      <label>peer user id</label>
+      <input type="text" id="peerUserId" value="u_ivan" style="width:120px" />
+      <button type="button" id="btnDirectCreate">Создать (POST /directs)</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Сообщения</legend>
+    <div class="row">
+      <label>type</label>
+      <input type="text" id="convType" value="channel" style="width:90px" />
+      <label>id</label>
+      <input type="text" id="convId" value="c_general" style="width:120px" />
+      <button type="button" id="btnMessagesList">Список (GET …/messages)</button>
+      <button type="button" id="btnMessageCreate">Создать (POST …/messages)</button>
+    </div>
+    <div class="row">
+      <label>message id</label>
+      <input type="text" id="messageId" value="m1" style="width:100px" />
+      <button type="button" id="btnMessagePatch">PATCH /messages/:id</button>
+      <button type="button" class="danger" id="btnMessageDelete">DELETE /messages/:id</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Вложения</legend>
+    <div class="row">
+      <label>attachment id</label>
+      <input type="text" id="attachmentId" placeholder="из ответа сообщения" style="width:180px" />
+      <button type="button" id="btnAttachmentPatch">PATCH /attachments/:id</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Реакции</legend>
+    <div class="row">
+      <label>emoji</label>
+      <input type="text" id="reactionEmoji" value="thumbsup" style="width:100px" />
+      <button type="button" id="btnReactionAdd">POST /messages/:id/reactions</button>
+      <button type="button" id="btnReactionRemove">DELETE …/reactions/:emoji</button>
+      <button type="button" id="btnReactionList">GET …/reactions</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Сохранённое</legend>
+    <div class="row">
+      <button type="button" id="btnSavedList">Список (GET /saved)</button>
+      <button type="button" id="btnSavedCreate">Создать (POST /saved)</button>
+    </div>
+    <div class="row">
+      <label>saved id</label>
+      <input type="text" id="savedId" value="s1" style="width:80px" />
+      <button type="button" id="btnSavedPatch">PATCH /saved/:id</button>
+      <button type="button" class="danger" id="btnSavedDelete">DELETE /saved/:id</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Активность</legend>
+    <div class="row">
+      <button type="button" id="btnActivities">GET /activities</button>
+      <button type="button" id="btnActivitiesUnread">GET /activities?unread_only=true</button>
+    </div>
+    <div class="row">
+      <label>activity id</label>
+      <input type="text" id="activityId" value="a1" style="width:80px" />
+      <button type="button" id="btnActivityRead">PATCH /activities/:id/read</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Поиск</legend>
+    <div class="row">
+      <label>q</label>
+      <input type="text" id="searchQ" value="мессенджер" style="width:160px" />
+      <button type="button" id="btnSearchMessages">GET /search?scope=messages</button>
+      <button type="button" id="btnSearchAll">GET /search?scope=all</button>
+    </div>
+  </fieldset>
+
+  <h2 style="font-size:1rem;margin-top:1.5rem">Ответы (JSON)</h2>
+  <div id="log"></div>
+
+  <script>
+    const baseEl = document.getElementById("base");
+    const tokenEl = document.getElementById("token");
+    const logEl = document.getElementById("log");
+    const LS_TOKEN = "messenger_api_tester_token";
+
+    function base() {
+      return baseEl.value.replace(/\/$/, "");
+    }
+
+    tokenEl.value = localStorage.getItem(LS_TOKEN) || "";
+
+    document.getElementById("btnSaveToken").onclick = () => {
+      localStorage.setItem(LS_TOKEN, tokenEl.value.trim());
+      log("Локально", 200, { saved: true });
+    };
+
+    document.getElementById("btnClearLog").onclick = () => {
+      logEl.innerHTML = "";
+    };
+
+    function log(title, status, body) {
+      const div = document.createElement("div");
+      div.className = "log-entry";
+      const st = document.createElement("div");
+      st.className = status >= 200 && status < 300 ? "status-ok" : "status-err";
+      st.textContent = `[${new Date().toLocaleTimeString()}] ${title} — HTTP ${status}`;
+      const pre = document.createElement("pre");
+      pre.style.margin = "0.5rem 0 0";
+      pre.textContent = typeof body === "string" ? body : JSON.stringify(body, null, 2);
+      div.appendChild(st);
+      div.appendChild(pre);
+      logEl.prepend(div);
+    }
+
+    async function api(title, method, path, body = null, useAuth = true) {
+      const opts = { method, headers: {} };
+      if (body !== null && body !== undefined) {
+        opts.headers["Content-Type"] = "application/json";
+        opts.body = JSON.stringify(body);
+      }
+      const t = tokenEl.value.trim();
+      if (useAuth && t) opts.headers["Authorization"] = "Bearer " + t;
+      let res;
+      try {
+        res = await fetch(base() + path, opts);
+      } catch (e) {
+        log(title, 0, String(e));
+        return;
+      }
+      const text = await res.text();
+      let data;
+      if (text === "") {
+        data = res.status === 204 ? { note: "204 No Content, тело пустое" } : "";
+      } else {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+      log(title, res.status, data);
+      return { res, data };
+    }
+
+    document.getElementById("btnLogin").onclick = async () => {
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPass").value;
+      const out = await api("POST /auth/login", "POST", "/auth/login", { email, password }, false);
+      if (out && out.data && out.data.accessToken) {
+        tokenEl.value = out.data.accessToken;
+        localStorage.setItem(LS_TOKEN, out.data.accessToken);
+      }
+    };
+
+    document.getElementById("btnLogout").onclick = () =>
+      api("POST /auth/logout", "POST", "/auth/logout", null, true);
+
+    document.getElementById("btnInviteComplete").onclick = () => {
+      const token = document.getElementById("inviteToken").value.trim();
+      return api("POST /auth/invite/complete", "POST", "/auth/invite/complete", {
+        token,
+        password: "secret12",
+        name: "Тестовый пользователь",
+        title: "",
+        department: "",
+      }, false);
+    };
+
+    document.getElementById("btnMeGet").onclick = () => api("GET /me", "GET", "/me");
+    document.getElementById("btnMePatch").onclick = () =>
+      api("PATCH /me", "PATCH", "/me", { bio: "Тест API " + new Date().toISOString() });
+    document.getElementById("btnMePatchName").onclick = () =>
+      api("PATCH /me (name)", "PATCH", "/me", { name: "Новое имя" });
+
+    document.getElementById("btnUsersList").onclick = () => api("GET /users", "GET", "/users");
+    document.getElementById("btnUserGet").onclick = () => {
+      const id = document.getElementById("userId").value.trim();
+      return api("GET /users/:id", "GET", "/users/" + encodeURIComponent(id));
+    };
+
+    document.getElementById("btnAdminCreateUser").onclick = () =>
+      api("POST /users", "POST", "/users", {
+        email: "apitest+" + Date.now() + "@example.com",
+        name: "API Test",
+        userType: "employee",
+        temporaryPassword: "secret12",
+      });
+
+    document.getElementById("btnAdminPatchUser").onclick = () => {
+      const id = document.getElementById("userId").value.trim();
+      return api("PATCH /users/:id", "PATCH", "/users/" + encodeURIComponent(id), {
+        title: "Patched " + new Date().toISOString(),
+      });
+    };
+
+    document.getElementById("btnDeactivate").onclick = () => {
+      const id = document.getElementById("deactivateUserId").value.trim();
+      return api("POST /admin/.../deactivate", "POST", "/admin/users/" + encodeURIComponent(id) + "/deactivate");
+    };
+
+    document.getElementById("btnAdminInvite").onclick = () =>
+      api("POST /admin/invites", "POST", "/admin/invites", {
+        email: "invited+" + Date.now() + "@example.com",
+        name: "Приглашённый",
+        expiresInDays: 7,
+      });
+
+    document.getElementById("btnWorkspace").onclick = () => api("GET /workspace", "GET", "/workspace");
+
+    document.getElementById("btnChannelsList").onclick = () => api("GET /channels", "GET", "/channels");
+    document.getElementById("btnChannelCreate").onclick = () => {
+      const slug = "test-" + Date.now();
+      return api("POST /channels", "POST", "/channels", {
+        slug,
+        title: "Тестовый канал",
+        topic: "из api-tester",
+        isPrivate: false,
+      });
+    };
+    document.getElementById("btnChannelGet").onclick = () => {
+      const id = document.getElementById("channelId").value.trim();
+      return api("GET /channels/:id", "GET", "/channels/" + encodeURIComponent(id));
+    };
+    document.getElementById("btnChannelPatch").onclick = () => {
+      const id = document.getElementById("channelId").value.trim();
+      return api("PATCH /channels/:id", "PATCH", "/channels/" + encodeURIComponent(id), {
+        topic: "обновлено " + new Date().toLocaleTimeString(),
+      });
+    };
+    document.getElementById("btnChannelDelete").onclick = () => {
+      const id = prompt("Удалить канал (id). Сид-каналы лучше не удалять.", "");
+      if (!id) return;
+      return api("DELETE /channels/:id", "DELETE", "/channels/" + encodeURIComponent(id));
+    };
+    document.getElementById("btnChannelJoin").onclick = () => {
+      const id = document.getElementById("channelId").value.trim();
+      return api("POST /channels/.../join", "POST", "/channels/" + encodeURIComponent(id) + "/join");
+    };
+    document.getElementById("btnChannelAddMember").onclick = () => {
+      const cid = document.getElementById("channelId").value.trim();
+      const uid = document.getElementById("channelMemberUserId").value.trim();
+      return api("POST /channels/.../members", "POST", "/channels/" + encodeURIComponent(cid) + "/members", {
+        userId: uid,
+      });
+    };
+    document.getElementById("btnChannelRemoveMember").onclick = () => {
+      const cid = document.getElementById("channelId").value.trim();
+      const uid = document.getElementById("channelMemberUserId").value.trim();
+      return api(
+        "DELETE /channels/.../members",
+        "DELETE",
+        "/channels/" + encodeURIComponent(cid) + "/members/" + encodeURIComponent(uid),
+      );
+    };
+    document.getElementById("btnChannelMembers").onclick = () => {
+      const id = document.getElementById("channelId").value.trim();
+      return api("GET /channels/.../members", "GET", "/channels/" + encodeURIComponent(id) + "/members");
+    };
+
+    document.getElementById("btnGroupsList").onclick = () => api("GET /groups", "GET", "/groups");
+    document.getElementById("btnGroupCreate").onclick = () =>
+      api("POST /groups", "POST", "/groups", {
+        title: "Группа " + Date.now(),
+        memberIds: ["u_me", "u_ivan"],
+      });
+    document.getElementById("btnGroupGet").onclick = () => {
+      const id = document.getElementById("groupId").value.trim();
+      return api("GET /groups/:id", "GET", "/groups/" + encodeURIComponent(id));
+    };
+    document.getElementById("btnGroupPatch").onclick = () => {
+      const id = document.getElementById("groupId").value.trim();
+      return api("PATCH /groups/:id", "PATCH", "/groups/" + encodeURIComponent(id), {
+        title: "Обновлено " + new Date().toLocaleTimeString(),
+      });
+    };
+    document.getElementById("btnGroupDelete").onclick = () => {
+      const id = prompt("Удалить группу (id)", "");
+      if (!id) return;
+      return api("DELETE /groups/:id", "DELETE", "/groups/" + encodeURIComponent(id));
+    };
+
+    document.getElementById("btnDirectsList").onclick = () => api("GET /directs", "GET", "/directs");
+    document.getElementById("btnDirectCreate").onclick = () => {
+      const peer = document.getElementById("peerUserId").value.trim();
+      return api("POST /directs", "POST", "/directs", { peerUserId: peer });
+    };
+
+    document.getElementById("btnMessagesList").onclick = () => {
+      const t = document.getElementById("convType").value.trim();
+      const id = document.getElementById("convId").value.trim();
+      return api("GET messages", "GET", "/conversations/" + encodeURIComponent(t) + "/" + encodeURIComponent(id) + "/messages?limit=20");
+    };
+    document.getElementById("btnMessageCreate").onclick = () => {
+      const t = document.getElementById("convType").value.trim();
+      const id = document.getElementById("convId").value.trim();
+      return api("POST message", "POST", "/conversations/" + encodeURIComponent(t) + "/" + encodeURIComponent(id) + "/messages", {
+        text: "Сообщение из api-tester " + new Date().toISOString(),
+      });
+    };
+    document.getElementById("btnMessagePatch").onclick = () => {
+      const mid = document.getElementById("messageId").value.trim();
+      return api("PATCH /messages/:id", "PATCH", "/messages/" + encodeURIComponent(mid), {
+        text: "Отредактировано " + new Date().toLocaleTimeString(),
+      });
+    };
+    document.getElementById("btnMessageDelete").onclick = () => {
+      const mid = document.getElementById("messageId").value.trim();
+      return api("DELETE /messages/:id", "DELETE", "/messages/" + encodeURIComponent(mid));
+    };
+
+    document.getElementById("btnAttachmentPatch").onclick = () => {
+      const aid = document.getElementById("attachmentId").value.trim();
+      if (!aid) {
+        log("PATCH attachment", 0, "Укажите attachment id (из GET messages → attachments[].id)");
+        return;
+      }
+      return api("PATCH /attachments/:id", "PATCH", "/attachments/" + encodeURIComponent(aid), {
+        name: "renamed-" + Date.now() + ".txt",
+      });
+    };
+
+    document.getElementById("btnReactionAdd").onclick = () => {
+      const mid = document.getElementById("messageId").value.trim();
+      const emoji = document.getElementById("reactionEmoji").value.trim();
+      return api("POST reaction", "POST", "/messages/" + encodeURIComponent(mid) + "/reactions", { emoji });
+    };
+    document.getElementById("btnReactionRemove").onclick = () => {
+      const mid = document.getElementById("messageId").value.trim();
+      const emoji = encodeURIComponent(document.getElementById("reactionEmoji").value.trim());
+      return api("DELETE reaction", "DELETE", "/messages/" + encodeURIComponent(mid) + "/reactions/" + emoji);
+    };
+    document.getElementById("btnReactionList").onclick = () => {
+      const mid = document.getElementById("messageId").value.trim();
+      return api("GET reactions", "GET", "/messages/" + encodeURIComponent(mid) + "/reactions");
+    };
+
+    document.getElementById("btnSavedList").onclick = () => api("GET /saved", "GET", "/saved");
+    document.getElementById("btnSavedCreate").onclick = () =>
+      api("POST /saved", "POST", "/saved", {
+        type: "message",
+        messageId: "m1",
+        conversationType: "channel",
+        conversationId: "c_general",
+        note: "тест",
+      });
+    document.getElementById("btnSavedPatch").onclick = () => {
+      const sid = document.getElementById("savedId").value.trim();
+      return api("PATCH /saved/:id", "PATCH", "/saved/" + encodeURIComponent(sid), { note: "заметка " + Date.now() });
+    };
+    document.getElementById("btnSavedDelete").onclick = () => {
+      const sid = prompt("saved id для удаления", "s1");
+      if (!sid) return;
+      return api("DELETE /saved/:id", "DELETE", "/saved/" + encodeURIComponent(sid));
+    };
+
+    document.getElementById("btnActivities").onclick = () => api("GET /activities", "GET", "/activities");
+    document.getElementById("btnActivitiesUnread").onclick = () =>
+      api("GET /activities unread", "GET", "/activities?unread_only=true");
+    document.getElementById("btnActivityRead").onclick = () => {
+      const aid = document.getElementById("activityId").value.trim();
+      return api("PATCH /activities/.../read", "PATCH", "/activities/" + encodeURIComponent(aid) + "/read");
+    };
+
+    document.getElementById("btnSearchMessages").onclick = () => {
+      const q = document.getElementById("searchQ").value.trim();
+      return api("GET /search", "GET", "/search?q=" + encodeURIComponent(q) + "&scope=messages");
+    };
+    document.getElementById("btnSearchAll").onclick = () => {
+      const q = document.getElementById("searchQ").value.trim();
+      return api("GET /search all", "GET", "/search?q=" + encodeURIComponent(q) + "&scope=all");
+    };
+  </script>
+</body>
+</html>

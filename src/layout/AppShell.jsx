@@ -1,11 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { channels, dms, groups, membership, guestMembership } from "../mock.js";
-import { getUser, userTypeLabel } from "../lib/utils.js";
+import { useMessenger } from "../context/MessengerContext.jsx";
+import { pickUser, userTypeLabel } from "../lib/utils.js";
 import { Avatar, Button, Input } from "../components/ui.jsx";
 import { SearchDropdown } from "../components/SearchDropdown.jsx";
-
-// ── Элементы навигации ─────────────────────────────────────────────────────
 
 function NavGroup({ title, right, children }) {
   return (
@@ -29,7 +27,11 @@ function NavItem({ to, label, disabled }) {
       : "text-white/70 hover:bg-white/5 hover:text-white",
   ].join(" ");
   if (disabled) return <div className={cls}>{label}</div>;
-  return <Link to={to} className={cls}>{label}</Link>;
+  return (
+    <Link to={to} className={cls}>
+      {label}
+    </Link>
+  );
 }
 
 function NavConversation({ to, label, hint, left }) {
@@ -49,37 +51,37 @@ function NavConversation({ to, label, hint, left }) {
   );
 }
 
-// ── Основной каркас приложения (Slack-подобный) ────────────────────────────
-
-export default function AppShell({ me, onLogout }) {
+export default function AppShell() {
   const location = useLocation();
+  const { me, logout, channels, groups, directs, users, workspaceError, retryWorkspace } =
+    useMessenger();
   const [query, setQuery] = useState("");
   const isGuest = me.userType === "guest";
   const createLinkState = { background: location.pathname + location.search };
 
-  const channelsVisible = useMemo(() => {
-    const allowed = isGuest ? guestMembership.channelIds : membership.channelIds;
-    return channels.filter((c) => allowed.includes(c.id));
-  }, [isGuest]);
-
-  const dmsVisible = useMemo(() => {
-    const allowed = isGuest ? guestMembership.dmIds : membership.dmIds;
-    return dms.filter((d) => allowed.includes(d.id));
-  }, [isGuest]);
-
-  const groupsVisible = useMemo(() => {
-    const allowed = isGuest ? guestMembership.groupIds : membership.groupIds;
-    return groups.filter((g) => allowed.includes(g.id));
-  }, [isGuest]);
+  const dmEntries = useMemo(() => {
+    return directs.map((d) => {
+      const peerUserId = d.userIds.find((id) => id !== me.id) ?? d.userIds[0];
+      return { threadId: d.id, peerUserId };
+    });
+  }, [directs, me.id]);
 
   return (
-    <div className="h-dvh w-full bg-slate-950">
-      <div className="grid h-full grid-cols-[300px_1fr]">
-
-        {/* ── Сайдбар ── */}
+    <div className="flex h-dvh w-full flex-col bg-slate-950">
+      {workspaceError && (
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-amber-400/25 bg-amber-400/10 px-4 py-2 text-xs text-amber-100">
+          <span className="min-w-0">{workspaceError}</span>
+          <button
+            type="button"
+            onClick={() => retryWorkspace()}
+            className="flex-shrink-0 rounded-md bg-white/10 px-2 py-1 text-[11px] text-white hover:bg-white/15"
+          >
+            Повторить
+          </button>
+        </div>
+      )}
+      <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr]">
         <aside className="flex h-full flex-col border-r border-white/10 bg-slate-950">
-
-          {/* Воркспейс / профиль */}
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">Мессенджер компании</div>
@@ -93,14 +95,13 @@ export default function AppShell({ me, onLogout }) {
             </div>
             <button
               type="button"
-              onClick={onLogout}
+              onClick={() => logout()}
               className="flex-shrink-0 rounded-lg bg-white/5 px-2 py-1 text-xs text-white/60 hover:bg-white/10"
             >
               Выйти
             </button>
           </div>
 
-          {/* Поиск с инлайн-дропдауном */}
           <div className="relative px-4 pb-3">
             <Input value={query} onChange={setQuery} placeholder="Поиск…" />
             {query.length > 0 && (
@@ -115,7 +116,6 @@ export default function AppShell({ me, onLogout }) {
             </div>
           </div>
 
-          {/* Навигация */}
           <nav className="flex-1 overflow-auto px-2 pb-4">
             <NavGroup title="Быстрый доступ">
               <NavItem to="/app/threads" label="Треды" />
@@ -127,11 +127,13 @@ export default function AppShell({ me, onLogout }) {
             <NavGroup
               title="Каналы"
               right={
-                <Button to="/app/new/channel" state={createLinkState} variant="ghost" size="sm">+</Button>
+                <Button to="/app/new/channel" state={createLinkState} variant="ghost" size="sm">
+                  +
+                </Button>
               }
             >
-              {channelsVisible
-                .filter((c) => !query || c.title.includes(query.toLowerCase()))
+              {channels
+                .filter((c) => !query || c.title.toLowerCase().includes(query.toLowerCase()))
                 .map((c) => (
                   <NavConversation
                     key={c.id}
@@ -145,16 +147,22 @@ export default function AppShell({ me, onLogout }) {
             <NavGroup
               title="Личные сообщения"
               right={
-                <Button to="/app/new/dm" state={createLinkState} variant="ghost" size="sm">+</Button>
+                <Button to="/app/new/dm" state={createLinkState} variant="ghost" size="sm">
+                  +
+                </Button>
               }
             >
-              {dmsVisible
-                .filter((d) => !query || getUser(d.peerUserId)?.name.toLowerCase().includes(query.toLowerCase()))
+              {dmEntries
+                .filter((d) => {
+                  if (!query) return true;
+                  const peer = pickUser(users, d.peerUserId);
+                  return peer?.name?.toLowerCase().includes(query.toLowerCase());
+                })
                 .map((d) => {
-                  const peer = getUser(d.peerUserId);
+                  const peer = pickUser(users, d.peerUserId) ?? { id: d.peerUserId, name: d.peerUserId };
                   return (
                     <NavConversation
-                      key={d.id}
+                      key={d.threadId}
                       to={`/app/d/${peer.id}`}
                       label={peer.name}
                       left={<Avatar user={peer} size="sm" />}
@@ -166,23 +174,24 @@ export default function AppShell({ me, onLogout }) {
             <NavGroup
               title="Группы"
               right={
-                <Button to="/app/new/group" state={createLinkState} variant="ghost" size="sm">+</Button>
+                <Button to="/app/new/group" state={createLinkState} variant="ghost" size="sm">
+                  +
+                </Button>
               }
             >
-              {groupsVisible
+              {groups
                 .filter((g) => !query || g.title.toLowerCase().includes(query.toLowerCase()))
                 .map((g) => (
                   <NavConversation
                     key={g.id}
                     to={`/app/g/${g.id}`}
                     label={g.title}
-                    hint={`${g.memberIds.length} участника`}
+                    hint={`${g.memberIds?.length ?? 0} участника`}
                   />
                 ))}
             </NavGroup>
           </nav>
 
-          {/* Нижняя плашка */}
           <div className="border-t border-white/10 p-3">
             <div className="flex items-center justify-between gap-2">
               <Link to="/app/me" className="text-xs text-white/60 hover:text-white">
@@ -195,7 +204,6 @@ export default function AppShell({ me, onLogout }) {
           </div>
         </aside>
 
-        {/* ── Основная область ── */}
         <main className="flex h-full flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-auto">
             <Outlet />

@@ -1,7 +1,24 @@
-import { users } from "../mock.js";
-
 export function cx(...parts) {
   return parts.filter(Boolean).join(" ");
+}
+
+/** Пользователь из списка API. */
+export function pickUser(usersList, userId) {
+  const list = usersList;
+  if (!userId || !list?.length) return null;
+  return list.find((u) => u.id === userId) ?? null;
+}
+
+export function userStub(userId) {
+  return {
+    id: userId,
+    name: userId,
+    title: "",
+    email: "",
+    avatarUrl: "",
+    status: "offline",
+    userType: "employee",
+  };
 }
 
 export function formatTime(iso) {
@@ -13,8 +30,9 @@ export function formatTime(iso) {
   });
 }
 
-export function getUser(userId) {
-  return users.find((u) => u.id === userId);
+/** @deprecated Используйте pickUser(users, id) из контекста. */
+export function getUser() {
+  return null;
 }
 
 export function presenceColor(status) {
@@ -27,6 +45,7 @@ export function presenceColor(status) {
 export function userTypeLabel(type) {
   if (type === "admin") return "Администратор";
   if (type === "guest") return "Гость";
+  if (type === "intern") return "Стажёр";
   return "Сотрудник";
 }
 

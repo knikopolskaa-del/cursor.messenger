@@ -1,11 +1,8 @@
 import React, { useState } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { users, messagesByConversationKey } from "../mock.js";
-import { cx, getUser, formatTime } from "../lib/utils.js";
+import { pickUser, userStub, formatTime, cx } from "../lib/utils.js";
+import { useMessenger } from "../context/MessengerContext.jsx";
 import { Avatar, Button, Card } from "./ui.jsx";
-
-// ── Скелетон загрузки чата ─────────────────────────────────────────────────
-// Показывается при переходе между чатами (loading-state).
 
 export function ChatSkeleton() {
   return (
@@ -24,10 +21,8 @@ export function ChatSkeleton() {
   );
 }
 
-// ── Одно сообщение ─────────────────────────────────────────────────────────
-
-export function Message({ message }) {
-  const author = getUser(message.authorId);
+export function Message({ message, users }) {
+  const author = pickUser(users, message.authorId) ?? userStub(message.authorId);
   return (
     <div className="group flex gap-3 rounded-xl border border-transparent p-3 hover:border-white/10 hover:bg-white/[0.02]">
       <Avatar user={author} />
@@ -53,7 +48,7 @@ export function Message({ message }) {
               >
                 <div className="min-w-0">
                   <div className="truncate text-xs font-semibold">
-                    {a.type === "image" ? "🖼️" : a.type === "video" ? "🎬" : "📄"} {a.name}
+                    {a.type === "image" ? "IMG" : a.type === "video" ? "VID" : "FILE"} {a.name}
                   </div>
                   <div className="text-[11px] text-white/40">{a.size}</div>
                 </div>
@@ -82,19 +77,28 @@ export function Message({ message }) {
         )}
 
         <div className="mt-1.5 hidden gap-2 group-hover:flex">
-          <Button to={`?thread=${message.id}`} variant="ghost" size="sm">↪ Тред</Button>
-          <Button to="/app/saved" variant="ghost" size="sm">☆ Сохранить</Button>
+          <Button to={`?thread=${message.id}`} variant="ghost" size="sm">
+            Тред
+          </Button>
+          <Button to="/app/saved" variant="ghost" size="sm">
+            Сохранить
+          </Button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Поле ввода сообщения ───────────────────────────────────────────────────
-
-export function Composer() {
+export function Composer({ onSend, disabled }) {
   const [text, setText] = useState("");
   const isEmpty = !text.trim();
+
+  async function handleSendClick() {
+    if (isEmpty || !onSend || disabled) return;
+    const t = text.trim();
+    setText("");
+    await onSend(t);
+  }
 
   return (
     <div className="border-t border-white/10 p-4">
@@ -120,10 +124,11 @@ export function Composer() {
           </button>
           <button
             type="button"
-            disabled={isEmpty}
+            disabled={isEmpty || disabled}
+            onClick={handleSendClick}
             className={cx(
               "h-9 rounded-lg px-3 text-xs font-semibold transition",
-              isEmpty
+              isEmpty || disabled
                 ? "bg-indigo-500/30 text-white/30 cursor-not-allowed"
                 : "bg-indigo-500 text-white hover:bg-indigo-400",
             )}
@@ -132,20 +137,14 @@ export function Composer() {
           </button>
         </div>
       </div>
-      {isEmpty && (
-        <div className="mt-1 text-right text-[11px] text-white/25">
-          Введите текст, чтобы отправить
-        </div>
-      )}
     </div>
   );
 }
 
-// ── Правая информационная панель ───────────────────────────────────────────
-
-export function RightPanel({ kind, panel }) {
+export function RightPanel({ kind, panel, channelMeta }) {
   const [sp] = useSearchParams();
   const navigate = useNavigate();
+  const { users } = useMessenger();
 
   const panelTitles = {
     info: "Информация",
@@ -188,12 +187,12 @@ export function RightPanel({ kind, panel }) {
 
         {panel === "members" && (
           <div className="space-y-2">
-            {users.slice(0, 3).map((u) => (
+            {users.slice(0, 8).map((u) => (
               <div key={u.id} className="flex items-center gap-2 rounded-lg bg-white/[0.03] p-2">
                 <Avatar user={u} size="sm" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm">{u.name}</div>
-                  <div className="text-[11px] text-white/40">{u.title}</div>
+                  <div className="truncate text-[11px] text-white/40">{u.title}</div>
                 </div>
               </div>
             ))}
@@ -203,8 +202,11 @@ export function RightPanel({ kind, panel }) {
         {panel === "files" && (
           <div className="space-y-2">
             {[{ name: "spec-v1.pdf", size: "842 KB" }, { name: "layout.png", size: "1.4 MB" }].map((f) => (
-              <div key={f.name} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
-                <span className="text-lg">📄</span>
+              <div
+                key={f.name}
+                className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2"
+              >
+                <span className="text-lg">DOC</span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-semibold">{f.name}</div>
                   <div className="text-[11px] text-white/40">{f.size}</div>
@@ -220,7 +222,7 @@ export function RightPanel({ kind, panel }) {
 
         {(panel === "info" || !panel) && kind === "channel" && (
           <div className="text-xs text-white/55">
-            Тема канала и основная информация будут здесь.
+            {channelMeta?.topic || "Тема канала и основная информация будут здесь."}
           </div>
         )}
       </div>
@@ -228,14 +230,11 @@ export function RightPanel({ kind, panel }) {
   );
 }
 
-// ── Боковая панель треда ───────────────────────────────────────────────────
-
-export function ThreadPanel({ conversationKey, rootMessageId }) {
+export function ThreadPanel({ conversationMessages, rootMessageId, users }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const root = (messagesByConversationKey[conversationKey] ?? []).find(
-    (m) => m.id === rootMessageId,
-  );
+  const root = (conversationMessages ?? []).find((m) => m.id === rootMessageId);
+  const replies = (conversationMessages ?? []).filter((m) => m.replyToId === rootMessageId);
 
   const close = () => {
     const sp = new URLSearchParams(location.search);
@@ -259,7 +258,7 @@ export function ThreadPanel({ conversationKey, rootMessageId }) {
       <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
         {root ? (
           <Card title="Исходное сообщение">
-            <div className="text-sm text-white/80">{root.text}</div>
+            <Message message={root} users={users} />
           </Card>
         ) : (
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/50">
@@ -267,9 +266,12 @@ export function ThreadPanel({ conversationKey, rootMessageId }) {
           </div>
         )}
         <Card title="Ответы">
-          <div className="space-y-2 text-sm text-white/65">
-            <div className="rounded-lg bg-white/5 p-3">Ответ 1…</div>
-            <div className="rounded-lg bg-white/5 p-3">Ответ 2…</div>
+          <div className="space-y-3">
+            {replies.length === 0 ? (
+              <div className="text-sm text-white/45">Пока нет ответов в треде.</div>
+            ) : (
+              replies.map((m) => <Message key={m.id} message={m} users={users} />)
+            )}
           </div>
         </Card>
       </div>

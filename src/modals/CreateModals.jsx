@@ -1,12 +1,11 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { users, currentUserId } from "../mock.js";
+import { useMessenger } from "../context/MessengerContext.jsx";
+import * as api from "../lib/api.js";
 import { userTypeLabel, statusLabel } from "../lib/utils.js";
 import { useForm, rules } from "../lib/validation.js";
 import { Modal, Button, Input, Field } from "../components/ui.jsx";
 import { Avatar } from "../components/ui.jsx";
-
-// ── Хаб "Что создать?" ─────────────────────────────────────────────────────
 
 export function NewHubModal() {
   const navigate = useNavigate();
@@ -20,22 +19,21 @@ export function NewHubModal() {
           # Канал
         </Button>
         <Button to="/app/new/group" state={location.state} variant="ghost">
-          👥 Групповой чат
+          Групповой чат
         </Button>
         <Button to="/app/new/dm" state={location.state} variant="ghost">
-          ✉ Личное сообщение
+          Личное сообщение
         </Button>
       </div>
     </Modal>
   );
 }
 
-// ── Создать канал ──────────────────────────────────────────────────────────
-
-export function NewChannelModal({ me }) {
+export function NewChannelModal() {
   const navigate = useNavigate();
   const location = useLocation();
   const closeTo = location.state?.background ?? "/app";
+  const { me, token } = useMessenger();
   const isGuest = me.userType === "guest";
 
   return (
@@ -50,48 +48,62 @@ export function NewChannelModal({ me }) {
       ) : (
         <CreateForm
           kind="channel"
-          onDone={() => navigate("/app/c/c_general", { replace: true })}
+          token={token}
+          onCreated={(channel) => navigate(`/app/c/${channel.id}`, { replace: true })}
+          onCancel={() => navigate(closeTo, { replace: true })}
         />
       )}
     </Modal>
   );
 }
 
-// ── Создать группу ─────────────────────────────────────────────────────────
-
 export function NewGroupModal() {
   const navigate = useNavigate();
   const location = useLocation();
   const closeTo = location.state?.background ?? "/app";
+  const { token } = useMessenger();
 
   return (
     <Modal title="Создать группу" onClose={() => navigate(closeTo, { replace: true })}>
       <CreateForm
         kind="group"
-        onDone={() => navigate("/app/g/g_launch", { replace: true })}
+        token={token}
+        onCreated={(group) => navigate(`/app/g/${group.id}`, { replace: true })}
+        onCancel={() => navigate(closeTo, { replace: true })}
       />
     </Modal>
   );
 }
 
-// ── Новое личное сообщение ─────────────────────────────────────────────────
-
 export function NewDmModal() {
   const navigate = useNavigate();
   const location = useLocation();
   const closeTo = location.state?.background ?? "/app";
+  const { me, users, token, refreshWorkspace } = useMessenger();
 
-  const otherUsers = users.filter((u) => u.id !== currentUserId);
+  const otherUsers = users.filter((u) => u.id !== me.id);
   const [picked, setPicked] = useState(otherUsers[0]?.id ?? "");
   const [touched, setTouched] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
 
   const pickedError = touched && !picked ? "Выберите сотрудника" : null;
   const pickedUser = otherUsers.find((u) => u.id === picked);
 
-  function handleOpen() {
+  async function handleOpen() {
     setTouched(true);
+    setErr(null);
     if (!picked) return;
-    navigate(`/app/d/${picked}`, { replace: true });
+    setBusy(true);
+    try {
+      await api.postDirect(token, picked);
+      await refreshWorkspace();
+      navigate(`/app/d/${picked}`, { replace: true });
+    } catch {
+      setErr("Не удалось открыть диалог.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -100,7 +112,10 @@ export function NewDmModal() {
         <Field label="Выберите сотрудника" error={pickedError}>
           <select
             value={picked}
-            onChange={(e) => { setPicked(e.target.value); setTouched(true); }}
+            onChange={(e) => {
+              setPicked(e.target.value);
+              setTouched(true);
+            }}
             className={[
               "h-10 w-full rounded-lg bg-white/5 px-3 text-sm text-white focus:outline-none focus:ring-2",
               pickedError
@@ -108,9 +123,7 @@ export function NewDmModal() {
                 : "focus:ring-indigo-400/30",
             ].join(" ")}
           >
-            {otherUsers.length === 0 && (
-              <option value="">Нет доступных сотрудников</option>
-            )}
+            {otherUsers.length === 0 && <option value="">Нет доступных сотрудников</option>}
             {otherUsers.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name} — {userTypeLabel(u.userType)}
@@ -131,8 +144,12 @@ export function NewDmModal() {
           </div>
         )}
 
+        {err && <div className="text-sm text-rose-300">{err}</div>}
+
         <div className="flex gap-2">
-          <Button onClick={handleOpen} disabled={!picked}>Открыть чат</Button>
+          <Button onClick={handleOpen} disabled={!picked || busy}>
+            {busy ? "Открытие…" : "Открыть чат"}
+          </Button>
           <Button onClick={() => navigate(closeTo, { replace: true })} variant="ghost">
             Отмена
           </Button>
@@ -142,11 +159,37 @@ export function NewDmModal() {
   );
 }
 
-// ── Универсальная форма создания (канал / группа) ──────────────────────────
-
-function CreateForm({ kind, onDone }) {
+function CreateForm({ kind, token, onCreated, onCancel }) {
   const isChannel = kind === "channel";
   const [isPrivate, setIsPrivate] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
+  const { me, users, refreshWorkspace } = useMessenger();
+
+  const otherUsers = useMemo(
+    () => users.filter((u) => u.id !== me.id),
+    [users, me.id],
+  );
+
+  const filteredForPicker = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
+    const base = otherUsers;
+    if (!q) return base;
+    return base.filter(
+      (u) =>
+        u.name.toLowerCase().includes(q) ||
+        (u.email && u.email.toLowerCase().includes(q)) ||
+        (u.title && u.title.toLowerCase().includes(q)),
+    );
+  }, [otherUsers, memberSearch]);
+
+  function toggleMember(userId) {
+    setSelectedMemberIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
+    );
+  }
 
   const form = useForm({
     name: {
@@ -166,21 +209,52 @@ function CreateForm({ kind, onDone }) {
     },
   });
 
-  function handleSubmit() {
+  async function handleSubmit() {
     form.touchAll();
+    setErr(null);
     if (!form.isValid) return;
-    onDone();
+    setBusy(true);
+    try {
+      if (isChannel) {
+        const slug = form.values.name.trim();
+        const ch = await api.postChannel(token, {
+          slug,
+          title: slug,
+          topic: "",
+          isPrivate,
+        });
+        await refreshWorkspace();
+        onCreated(ch);
+      } else {
+        const memberIds = [...new Set([me.id, ...selectedMemberIds])];
+        if (memberIds.length < 2) {
+          setErr("Выберите хотя бы одного сотрудника в блоке «Все сотрудники».");
+          setBusy(false);
+          return;
+        }
+        const g = await api.postGroup(token, {
+          title: form.values.name.trim(),
+          memberIds,
+        });
+        await refreshWorkspace();
+        onCreated(g);
+      }
+    } catch (e) {
+      setErr(e.message || "Ошибка создания");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <div className="space-y-4">
       <Field
-        label={isChannel ? "Название канала" : "Название группы"}
+        label={isChannel ? "Название канала (slug)" : "Название группы"}
         error={form.field("name").error}
       >
         <Input
           {...form.field("name")}
-          placeholder={isChannel ? "команда-ux" : "Команда запуска"}
+          placeholder={isChannel ? "komanda-ux" : "Команда запуска"}
         />
         {isChannel && (
           <div className="mt-1 text-[11px] text-white/35">
@@ -201,12 +275,87 @@ function CreateForm({ kind, onDone }) {
         </label>
       )}
 
-      <Button
-        onClick={handleSubmit}
-        disabled={!form.isValid && Object.values(form.errors).some(Boolean)}
-      >
-        Создать
-      </Button>
+      {!isChannel && (
+        <div className="space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-white/45">
+            Добавить сотрудников
+          </div>
+
+          {selectedMemberIds.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {selectedMemberIds.map((id) => {
+                const u = otherUsers.find((x) => x.id === id);
+                if (!u) return null;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => toggleMember(id)}
+                    className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/20 px-2 py-1 text-xs text-indigo-100 hover:bg-indigo-500/30"
+                  >
+                    <Avatar user={u} size="sm" />
+                    <span>{u.name}</span>
+                    <span className="text-white/50" aria-hidden>
+                      ×
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <Field label="Все сотрудники">
+            <Input
+              value={memberSearch}
+              onChange={setMemberSearch}
+              placeholder="Поиск по имени, e-mail или должности…"
+            />
+          </Field>
+
+          <div className="max-h-44 overflow-auto rounded-lg border border-white/10 bg-white/[0.03]">
+            {otherUsers.length === 0 ? (
+              <div className="p-3 text-xs text-white/40">Нет других сотрудников в каталоге.</div>
+            ) : filteredForPicker.length === 0 ? (
+              <div className="p-3 text-xs text-white/40">Никого не найдено.</div>
+            ) : (
+              filteredForPicker.map((u) => {
+                const on = selectedMemberIds.includes(u.id);
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => toggleMember(u.id)}
+                    className={[
+                      "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition",
+                      on ? "bg-indigo-500/15 text-white" : "text-white/75 hover:bg-white/5",
+                    ].join(" ")}
+                  >
+                    <Avatar user={u} size="sm" />
+                    <span className="min-w-0 flex-1 truncate">{u.name}</span>
+                    <span className="text-[10px] text-white/35">{userTypeLabel(u.userType)}</span>
+                    {on && (
+                      <span className="text-xs text-indigo-300" aria-hidden>
+                        {"\u2713"}
+                      </span>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {err && <div className="text-sm text-rose-300">{err}</div>}
+
+      <div className="flex gap-2">
+        <Button onClick={handleSubmit} disabled={busy}>
+          {busy ? "Создание…" : "Создать"}
+        </Button>
+        <Button onClick={onCancel} variant="ghost">
+          Отмена
+        </Button>
+      </div>
     </div>
   );
 }
