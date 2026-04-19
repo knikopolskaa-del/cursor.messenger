@@ -4,7 +4,9 @@ import re
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import Self
+
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 ConversationType = Literal["channel", "group", "direct"]
 UserType = Literal["employee", "admin", "guest", "intern"]
@@ -121,6 +123,7 @@ class ChannelCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     topic: str = ""
     isPrivate: bool = False
+    iconUrl: str = ""
 
     @field_validator("slug")
     @classmethod
@@ -133,6 +136,7 @@ class ChannelPatch(BaseModel):
     title: str | None = Field(default=None, max_length=200)
     topic: str | None = None
     isPrivate: bool | None = None
+    iconUrl: str | None = None
 
     @field_validator("slug")
     @classmethod
@@ -151,16 +155,19 @@ class ChannelOut(BaseModel):
     isPrivate: bool
     createdBy: str
     createdAt: datetime
+    iconUrl: str = ""
 
 
 class GroupCreate(BaseModel):
     title: str = Field(min_length=2, max_length=80)
     memberIds: list[str] = Field(min_length=2)
+    iconUrl: str = ""
 
 
 class GroupPatch(BaseModel):
     title: str | None = Field(default=None, min_length=2, max_length=80)
     memberIds: list[str] | None = None
+    iconUrl: str | None = None
 
 
 class GroupOut(BaseModel):
@@ -170,6 +177,7 @@ class GroupOut(BaseModel):
     createdBy: str
     createdAt: datetime
     memberIds: list[str]
+    iconUrl: str = ""
 
 
 class DirectCreate(BaseModel):
@@ -192,19 +200,20 @@ class AttachmentIn(BaseModel):
 
 
 class MessageCreate(BaseModel):
-    text: str = Field(min_length=1, max_length=4000)
+    text: str = Field(default="", max_length=4000)
     parentMessageId: str | None = None
     attachments: list[AttachmentIn] | None = None
 
-    @field_validator("text")
-    @classmethod
-    def text_strip(cls, v: str) -> str:
-        t = v.strip()
-        if not t:
-            raise ValueError("text cannot be empty")
+    @model_validator(mode="after")
+    def text_or_attachments(self) -> Self:
+        t = (self.text or "").strip()
+        has_att = bool(self.attachments)
+        if not t and not has_att:
+            raise ValueError("message must have text or attachments")
         if len(t) > 4000:
             raise ValueError("text too long")
-        return t
+        object.__setattr__(self, "text", t if t else "\u2060")
+        return self
 
 
 class MessagePatch(BaseModel):
@@ -271,6 +280,10 @@ class SavedOut(BaseModel):
     conversationId: str
     note: str = ""
     savedAt: datetime
+    authorId: str | None = None
+    authorName: str | None = None
+    preview: str = ""
+    previewUnavailable: bool = False
 
 
 class ActivityOut(BaseModel):

@@ -9,7 +9,8 @@ from pydantic import BaseModel, EmailStr, Field
 
 from ..deps import require_admin
 from ..schemas import InviteCreateResponse
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -58,4 +59,5 @@ def deactivate_user(
     to_del = [t for t, s in store.sessions.items() if s["userId"] == user_id]
     for t in to_del:
         del store.sessions[t]
+    store.users[user_id] = u
     return {"ok": True, "userId": user_id}

@@ -3,8 +3,14 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException
+from sqlalchemy.orm import Session
 
-from .store import Store, get_store
+from .database import get_session
+from .store import Store
+
+
+def get_store(session: Annotated[Session, Depends(get_session)]) -> Store:
+    return Store(session)
 
 
 def bearer_token(authorization: str | None = Header(default=None)) -> str:

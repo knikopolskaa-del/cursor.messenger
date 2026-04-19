@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..access import can_read_direct
 from ..deps import current_user
 from ..schemas import DirectCreate, DirectOut
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(prefix="/directs", tags=["directs"])
 

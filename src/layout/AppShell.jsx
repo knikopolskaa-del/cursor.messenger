@@ -4,6 +4,26 @@ import { useMessenger } from "../context/MessengerContext.jsx";
 import { pickUser, userTypeLabel } from "../lib/utils.js";
 import { Avatar, Button, Input } from "../components/ui.jsx";
 import { SearchDropdown } from "../components/SearchDropdown.jsx";
+import { AuthScopedImage } from "../components/ChatComponents.jsx";
+
+function ConvIcon({ iconUrl, token, label }) {
+  const letter = (label || "?").trim().slice(0, 1).toUpperCase();
+  if (iconUrl) {
+    return (
+      <AuthScopedImage
+        url={iconUrl}
+        token={token}
+        alt=""
+        className="h-7 w-7 flex-shrink-0 rounded-lg border border-white/10 object-cover"
+      />
+    );
+  }
+  return (
+    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/5 text-[11px] font-semibold text-white/45">
+      {letter}
+    </span>
+  );
+}
 
 function NavGroup({ title, right, children }) {
   return (
@@ -53,7 +73,7 @@ function NavConversation({ to, label, hint, left }) {
 
 export default function AppShell() {
   const location = useLocation();
-  const { me, logout, channels, groups, directs, users, workspaceError, retryWorkspace } =
+  const { me, token, logout, channels, groups, directs, users, workspaceError, retryWorkspace } =
     useMessenger();
   const [query, setQuery] = useState("");
   const isGuest = me.userType === "guest";
@@ -140,6 +160,7 @@ export default function AppShell() {
                     to={`/app/c/${c.id}`}
                     label={`#${c.title}`}
                     hint={c.isPrivate ? "Приватный" : null}
+                    left={<ConvIcon iconUrl={c.iconUrl} token={token} label={c.title} />}
                   />
                 ))}
             </NavGroup>
@@ -187,6 +208,7 @@ export default function AppShell() {
                     to={`/app/g/${g.id}`}
                     label={g.title}
                     hint={`${g.memberIds?.length ?? 0} участника`}
+                    left={<ConvIcon iconUrl={g.iconUrl} token={token} label={g.title} />}
                   />
                 ))}
             </NavGroup>

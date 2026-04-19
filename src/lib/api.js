@@ -153,6 +153,48 @@ export function getSaved(token) {
   return request("GET", "/saved", { token });
 }
 
+export function postSaved(token, body) {
+  return request("POST", "/saved", { token, body });
+}
+
+export function patchChannel(token, channelId, body) {
+  return request("PATCH", `/channels/${encodeURIComponent(channelId)}`, { token, body });
+}
+
+export function patchGroup(token, groupId, body) {
+  return request("PATCH", `/groups/${encodeURIComponent(groupId)}`, { token, body });
+}
+
+/** Multipart загрузка файла; ответ: { fileId, url, name, sizeBytes, mimeType, type } */
+export async function postUpload(token, file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/uploads`, { method: "POST", headers, body: fd });
+  } catch (e) {
+    throw new Error(formatApiError(e));
+  }
+  const text = await res.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+  }
+  if (!res.ok) {
+    const err = new Error(messageFromResponseBody(data, res.statusText));
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
 export function search(token, q, scope = "messages") {
   return request("GET", `/search?q=${encodeURIComponent(q)}&scope=${encodeURIComponent(scope)}`, {
     token,

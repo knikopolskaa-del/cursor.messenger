@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..access import can_create_channel, can_manage_group, can_read_group
 from ..deps import current_user
 from ..schemas import GroupCreate, GroupOut, GroupPatch
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -21,6 +22,7 @@ def _g_out(g: dict) -> GroupOut:
         createdBy=g["createdBy"],
         createdAt=g["createdAt"],
         memberIds=list(g["memberIds"]),
+        iconUrl=g.get("iconUrl") or "",
     )
 
 
@@ -59,6 +61,7 @@ def create_group(
         "createdBy": user["id"],
         "createdAt": datetime.now(timezone.utc),
         "memberIds": mids,
+        "iconUrl": body.iconUrl or "",
     }
     store.groups[gid] = g
     return _g_out(g)
@@ -99,6 +102,9 @@ def patch_group(
         g["memberIds"] = list(dict.fromkeys(mids))
     if "title" in data:
         g["title"] = data["title"]
+    if "iconUrl" in data:
+        g["iconUrl"] = data["iconUrl"] or ""
+    store.groups[group_id] = g
     return _g_out(g)
 
 

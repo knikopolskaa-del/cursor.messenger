@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..access import is_admin
 from ..deps import current_user
 from ..schemas import AttachmentOut, AttachmentPatchBody
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(tags=["attachments"])
 

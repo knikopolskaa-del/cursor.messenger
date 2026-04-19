@@ -1,3 +1,16 @@
+import { API_BASE } from "./api.js";
+
+/** Абсолютный URL для иконок/вложений: http(s) как есть, иначе префикс API. */
+export function absoluteAssetUrl(url) {
+  if (!url || typeof url !== "string") return "";
+  const u = url.trim();
+  if (!u) return "";
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  const base = API_BASE.replace(/\/$/, "");
+  const path = u.startsWith("/") ? u : `/${u}`;
+  return `${base}${path}`;
+}
+
 /** Найти id треда DM по паре (я, собеседник). */
 export function resolveDirectThreadId(directs, meId, peerUserId) {
   if (!directs?.length || !meId || !peerUserId) return null;
@@ -25,9 +38,13 @@ export function normalizeApiMessage(m) {
     createdAt,
     replyToId: m.parentMessageId ?? null,
     attachments: (m.attachments ?? []).map((a) => ({
+      id: a.id,
       type: a.type,
       name: a.name,
       size: formatAttachmentSize(a.sizeBytes),
+      sizeBytes: a.sizeBytes ?? 0,
+      mimeType: a.mimeType || "",
+      url: a.url || "",
     })),
     reactions: m.reactions ?? [],
   };

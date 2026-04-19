@@ -1,5 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate, useParams, useSearchParams } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useMessenger } from "../context/MessengerContext.jsx";
 import { pickUser } from "../lib/utils.js";
 import * as api from "../lib/api.js";
@@ -24,7 +30,11 @@ export function AppIndexRedirect() {
 
 export default function ChatPage({ kind }) {
   const params = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [sp] = useSearchParams();
+  const focusHandledRef = useRef(false);
+  const focusId = sp.get("focus");
   const threadMessageId = sp.get("thread");
   const panel = sp.get("panel");
 
@@ -79,6 +89,29 @@ export default function ChatPage({ kind }) {
     loadMessages();
   }, [loadMessages]);
 
+  useEffect(() => {
+    focusHandledRef.current = false;
+  }, [focusId, apiConversation?.type, apiConversation?.id]);
+
+  useEffect(() => {
+    if (!focusId || loading || messages.length === 0) return;
+    if (focusHandledRef.current) return;
+    const safe = /^[a-zA-Z0-9_-]+$/.test(focusId) ? focusId : null;
+    if (!safe) return;
+    const el = document.querySelector(`[data-message-id="${safe}"]`);
+    if (el) {
+      focusHandledRef.current = true;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      const next = new URLSearchParams(sp);
+      next.delete("focus");
+      const q = next.toString();
+      navigate(
+        { pathname: location.pathname, search: q ? `?${q}` : "" },
+        { replace: true },
+      );
+    }
+  }, [focusId, loading, messages, location.pathname, navigate, sp]);
+
   const title = useMemo(() => {
     if (kind === "channel") {
       const c = channels.find((x) => x.id === params.id);
@@ -100,15 +133,25 @@ export default function ChatPage({ kind }) {
     return channels.find((x) => x.id === params.id) ?? null;
   }, [kind, params.id, channels]);
 
+  const groupMeta = useMemo(() => {
+    if (kind !== "group") return null;
+    return groups.find((x) => x.id === params.id) ?? null;
+  }, [kind, params.id, groups]);
+
   const kindLabel =
     kind === "channel" ? "Канал" : kind === "dm" ? "Личное сообщение" : "Группа";
 
-  async function handleSend(text) {
+  async function handleSend({ text, attachments }) {
     if (!token || !apiConversation || sending) return;
+    const att = (attachments || []).filter((a) => a?.url);
+    const trimmed = (text || "").trim();
+    if (!trimmed && att.length === 0) return;
     setSending(true);
     setSendError(null);
     try {
-      await api.postMessage(token, apiConversation.type, apiConversation.id, { text });
+      const body = { text: trimmed };
+      if (att.length) body.attachments = att;
+      await api.postMessage(token, apiConversation.type, apiConversation.id, body);
       await loadMessages();
     } catch (e) {
       setSendError(api.formatApiError(e));
@@ -163,7 +206,13 @@ export default function ChatPage({ kind }) {
           ) : (
             <div className="space-y-2 px-5 py-4">
               {messages.map((m) => (
-                <Message key={m.id} message={m} users={users} />
+                <Message
+                  key={m.id}
+                  message={m}
+                  users={users}
+                  conversationType={apiConversation.type}
+                  conversationId={apiConversation.id}
+                />
               ))}
             </div>
           )}
@@ -177,14 +226,21 @@ export default function ChatPage({ kind }) {
         <Composer onSend={handleSend} disabled={!apiConversation || sending} />
       </div>
 
-      <RightPanel kind={kind} panel={panel} channelMeta={channelMeta} />
+      <RightPanel
+        kind={kind}
+        panel={panel}
+        channelMeta={channelMeta}
+        groupMeta={groupMeta}
+      />
 
-      {threadMessageId && (
+      {threadMessageId && apiConversation && (
         <div className="fixed inset-y-0 right-0 z-40 w-[400px] border-l border-white/10 bg-slate-950">
           <ThreadPanel
             conversationMessages={messages}
             rootMessageId={threadMessageId}
             users={users}
+            conversationType={apiConversation.type}
+            conversationId={apiConversation.id}
           />
         </div>
       )}

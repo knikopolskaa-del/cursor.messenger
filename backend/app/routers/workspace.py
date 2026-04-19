@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends
 
 from ..deps import current_user
 from ..schemas import WorkspaceOut
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(tags=["workspace"])
 

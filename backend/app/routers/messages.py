@@ -9,7 +9,8 @@ from ..access import conversation_participant, is_admin
 from ..deps import current_user
 from ..schemas import MessageOut, MessagePatch
 from ..serialize import message_out
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(tags=["messages"])
 
@@ -32,6 +33,10 @@ def patch_message(
         raise HTTPException(404, detail="Message not found")
     msg["text"] = body.text
     msg["editedAt"] = datetime.now(timezone.utc)
+    try:
+        store.messages[message_id] = msg
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
     return message_out(store, msg)
 
 
@@ -50,12 +55,12 @@ def delete_message(
         raise HTTPException(404, detail="Message not found")
     if is_admin(user):
         del store.messages[message_id]
-        aids = [k for k, a in store.attachments.items() if a["messageId"] == message_id]
-        for k in aids:
-            del store.attachments[k]
-        store.reactions[:] = [r for r in store.reactions if r["messageId"] != message_id]
         return {"ok": True, "hard": True}
     if msg["authorId"] != user["id"]:
         raise HTTPException(403, detail={"error": "forbidden", "message": "Only author can delete"})
     msg["deletedAt"] = datetime.now(timezone.utc)
+    try:
+        store.messages[message_id] = msg
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
     return {"ok": True, "hard": False}

@@ -10,7 +10,8 @@ from ..deps import bearer_token, current_user_id
 from ..schemas import LoginBody, LoginResponse, RegisterInviteBody
 from ..security import hash_password, new_token, verify_password
 from ..serialize import user_public
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -112,4 +113,5 @@ def complete_invite(
     inv["usedAt"] = datetime.now(timezone.utc)
     token = new_token()
     store.sessions[token] = {"token": token, "userId": uid, "expiresAt": None}
+    store.invites[body.token] = inv
     return LoginResponse(accessToken=token, user=user_public(u))

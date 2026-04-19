@@ -6,11 +6,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..access import is_admin, is_guest
-from ..deps import current_user, current_user_id, require_admin
+from ..deps import current_user, current_user_id, get_store, require_admin
 from ..schemas import AdminPatchUserBody, CreateUserBody, PatchMeBody, UserPublic
 from ..security import hash_password
 from ..serialize import user_public
-from ..store import Store, get_store
+from ..store import Store
 
 router = APIRouter(tags=["users"])
 

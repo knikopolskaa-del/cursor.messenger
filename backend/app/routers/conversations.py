@@ -6,11 +6,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ..access import can_post_message, conversation_participant, is_admin
+from ..access import can_post_message, conversation_participant
 from ..deps import current_user
+from ..file_uploads import bind_uploads_to_message, validate_pending_uploads
 from ..schemas import MessageCreate, MessageOut
 from ..serialize import message_out
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -90,10 +92,18 @@ def post_message(
         raise HTTPException(404, detail="Conversation not found")
     if body.parentMessageId:
         parent = store.messages.get(body.parentMessageId)
-        if not parent or parent["conversationType"] != ctype or parent["conversationId"] != cid:
+        if (
+            not parent
+            or parent.get("deletedAt")
+            or parent["conversationType"] != ctype
+            or parent["conversationId"] != cid
+        ):
             raise HTTPException(400, detail="Invalid parentMessageId")
     mid = store.next_id("m")
     now = datetime.now(timezone.utc)
+    atts = body.attachments or []
+    if atts:
+        validate_pending_uploads(store.session, user["id"], atts)
     msg = {
         "id": mid,
         "conversationType": ctype,
@@ -105,9 +115,12 @@ def post_message(
         "editedAt": None,
         "deletedAt": None,
     }
-    store.messages[mid] = msg
-    if body.attachments:
-        for a in body.attachments:
+    try:
+        store.messages[mid] = msg
+    except ValueError as exc:
+        raise HTTPException(400, detail=str(exc)) from exc
+    if atts:
+        for a in atts:
             aid = store.next_id("at")
             store.attachments[aid] = {
                 "id": aid,
@@ -118,5 +131,7 @@ def post_message(
                 "mimeType": a.mimeType or "application/octet-stream",
                 "url": a.url,
             }
-    _create_mentions(store, body.text, user["id"], ctype, cid, mid)
+        bind_uploads_to_message(store.session, mid, atts)
+    if (body.text or "").strip().strip("\u2060"):
+        _create_mentions(store, body.text, user["id"], ctype, cid, mid)
     return message_out(store, msg)

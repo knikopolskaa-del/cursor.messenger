@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from ..access import conversation_participant
 from ..deps import current_user
 from ..schemas import ReactionBody
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(tags=["reactions"])
 
@@ -54,15 +55,7 @@ def remove_reaction(
     msg = store.messages.get(message_id)
     if not msg:
         raise HTTPException(404, detail="Message not found")
-    store.reactions[:] = [
-        r
-        for r in store.reactions
-        if not (
-            r["messageId"] == message_id
-            and r["emoji"] == emoji
-            and r["userId"] == user["id"]
-        )
-    ]
+    store.remove_reaction(message_id, emoji, user["id"])
     return {"ok": True}
 
 

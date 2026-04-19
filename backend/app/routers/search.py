@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..access import can_read_channel, can_read_group, conversation_participant
 from ..deps import current_user
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(prefix="/search", tags=["search"])
 

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMessenger } from "../context/MessengerContext.jsx";
 import * as api from "../lib/api.js";
-import { formatTime, pickUser } from "../lib/utils.js";
+import { formatTime, pickUser, userStub } from "../lib/utils.js";
 import { appPathForConversation } from "../lib/chatApi.js";
-import { Card, Button, PageHeader } from "../components/ui.jsx";
+import { Card, Button, PageHeader, Avatar } from "../components/ui.jsx";
 
 function EmptyState({ icon, title, text }) {
   return (
@@ -114,7 +115,8 @@ export function MentionsPage() {
 }
 
 export function SavedPage() {
-  const { token, me, directs } = useMessenger();
+  const navigate = useNavigate();
+  const { token, me, directs, users } = useMessenger();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -156,26 +158,57 @@ export function SavedPage() {
           <EmptyState
             icon="*"
             title="Пока ничего не сохранено"
-            text='Нажмите «Сохранить» на сообщении (скоро свяжем с API).'
+            text="Нажмите «Сохранить» у сообщения в чате — запись появится здесь."
           />
         ) : (
           items.map((s) => {
             const path = appPathForConversation(s.conversationType, s.conversationId, me.id, directs);
+            const goTarget = `${path}${
+              s.type === "message" && s.messageId
+                ? `${path.includes("?") ? "&" : "?"}focus=${encodeURIComponent(s.messageId)}`
+                : ""
+            }`;
+            const author =
+              s.type === "message" && s.authorId
+                ? pickUser(users, s.authorId) ?? userStub(s.authorId)
+                : null;
+            const preview =
+              s.preview ||
+              (s.type === "file" ? s.fileName || "Файл" : "") ||
+              (s.type === "message" ? "Сообщение" : "");
+
             return (
-              <Card
+              <button
                 key={s.id}
-                title={s.type === "message" ? "Сообщение" : "Файл"}
-                subtitle={`Сохранено: ${formatTime(s.savedAt)}`}
-                right={
-                  <Button to={path} variant="ghost" size="sm">
-                    Перейти
-                  </Button>
-                }
+                type="button"
+                onClick={() => navigate(goTarget)}
+                className="flex w-full items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
               >
-                <div className="text-sm text-white/70">
-                  {s.type === "message" ? `id: ${s.messageId}` : `Файл: ${s.fileName}`}
+                {author ? (
+                  <Avatar user={author} size="sm" />
+                ) : (
+                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/5 text-sm text-white/40" aria-hidden>
+                    {"\u{1F4CE}"}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    {author ? (
+                      <span className="text-sm font-semibold text-white/90">{author.name}</span>
+                    ) : (
+                      <span className="text-sm font-semibold text-white/90">Файл</span>
+                    )}
+                    <span className="text-[11px] text-white/35">{formatTime(s.savedAt)}</span>
+                  </div>
+                  <div
+                    className={`mt-1 line-clamp-2 text-sm ${
+                      s.previewUnavailable ? "text-white/40" : "text-white/70"
+                    }`}
+                  >
+                    {preview}
+                  </div>
                 </div>
-              </Card>
+              </button>
             );
           })
         )}

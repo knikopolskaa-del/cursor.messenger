@@ -14,7 +14,8 @@ from ..access import (
 )
 from ..deps import current_user, require_admin
 from ..schemas import ChannelCreate, ChannelOut, ChannelPatch
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(prefix="/channels", tags=["channels"])
 
@@ -29,6 +30,7 @@ def _ch_out(ch: dict) -> ChannelOut:
         isPrivate=ch["isPrivate"],
         createdBy=ch["createdBy"],
         createdAt=ch["createdAt"],
+        iconUrl=ch.get("iconUrl") or "",
     )
 
 
@@ -65,6 +67,7 @@ def create_channel(
         "isPrivate": body.isPrivate,
         "createdBy": user["id"],
         "createdAt": datetime.now(timezone.utc),
+        "iconUrl": body.iconUrl or "",
     }
     store.channels[cid] = ch
     store.add_membership(user["id"], "channel", cid)
@@ -105,6 +108,7 @@ def patch_channel(
             raise HTTPException(400, detail="slug_taken")
     for k, v in data.items():
         ch[k] = v
+    store.channels[channel_id] = ch
     return _ch_out(ch)
 
 
@@ -120,11 +124,7 @@ def delete_channel(
     if not can_manage_channel(store, user, ch):
         raise HTTPException(403, detail={"error": "forbidden", "message": "Cannot delete channel"})
     del store.channels[channel_id]
-    store.memberships[:] = [
-        m
-        for m in store.memberships
-        if not (m["targetType"] == "channel" and m["targetId"] == channel_id)
-    ]
+    store.remove_memberships_for_channel(channel_id)
     return {"ok": True}
 
 
@@ -173,15 +173,7 @@ def remove_channel_member(
     ch = store.channels.get(channel_id)
     if not ch:
         raise HTTPException(404, detail="Channel not found")
-    store.memberships[:] = [
-        m
-        for m in store.memberships
-        if not (
-            m["targetType"] == "channel"
-            and m["targetId"] == channel_id
-            and m["userId"] == user_id
-        )
-    ]
+    store.remove_channel_member(channel_id, user_id)
     return {"ok": True}
 
 

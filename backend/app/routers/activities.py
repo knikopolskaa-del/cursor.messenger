@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ..deps import current_user
 from ..schemas import ActivityOut
 from ..serialize import activity_out
-from ..store import Store, get_store
+from ..deps import get_store
+from ..store import Store
 
 router = APIRouter(prefix="/activities", tags=["activities"])
 
@@ -36,4 +37,5 @@ def mark_read(
     if not a or a["userId"] != user["id"]:
         raise HTTPException(404, detail="Not found")
     a["readAt"] = datetime.now(timezone.utc)
+    store.activities[activity_id] = a
     return activity_out(a)
