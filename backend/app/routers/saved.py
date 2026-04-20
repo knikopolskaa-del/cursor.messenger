@@ -35,7 +35,7 @@ def _s_out(store: Store, s: dict) -> SavedOut:
                         break
         else:
             preview_unavailable = True
-            preview = "Сообщение недоступно"
+            preview = "Message is not available"
     elif s["type"] == "file":
         preview = (s.get("fileName") or "")[:200]
     return SavedOut(

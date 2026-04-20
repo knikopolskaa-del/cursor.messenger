@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId, useRef } from "react";
 import { Link } from "react-router-dom";
 import { cx, presenceColor } from "../lib/utils.js";
 
@@ -70,21 +70,79 @@ export function Button({ to, onClick, variant = "primary", size = "md", children
 // ── Текстовый input с поддержкой ошибок ───────────────────────────────────
 
 export function Input({ value, onChange, onBlur, placeholder, autoFocus, type = "text", error }) {
+  // Backward-compat wrapper: keep old signature working.
   return (
-    <input
+    <InputV2
       value={value}
-      type={type}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={onChange}
       onBlur={onBlur}
       placeholder={placeholder}
       autoFocus={autoFocus}
-      className={cx(
-        "h-10 w-full rounded-lg bg-white/5 px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2",
-        error
-          ? "border border-rose-400/50 focus:ring-rose-400/30"
-          : "focus:ring-indigo-400/30",
-      )}
+      type={type}
+      error={error}
     />
+  );
+}
+
+export function InputV2({
+  value,
+  onChange,
+  onChangeEvent,
+  onBlur,
+  placeholder,
+  autoFocus,
+  type = "text",
+  error,
+  maxLength,
+  inputMode,
+  right,
+  clearable = true,
+}) {
+  const id = useId();
+  const ref = useRef(null);
+  const hasValue = String(value ?? "").length > 0;
+  const showClear = Boolean(clearable && hasValue && typeof onChange === "function");
+  const rightCount = (showClear ? 1 : 0) + (right ? 1 : 0);
+  const pr = rightCount === 0 ? "pr-3" : rightCount === 1 ? "pr-10" : "pr-[5.25rem]";
+
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        ref={ref}
+        value={value}
+        type={type}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        onChange={onChangeEvent ?? ((e) => onChange(e.target.value))}
+        onBlur={onBlur}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        className={cx(
+          "h-10 w-full rounded-lg bg-white/5 px-3 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2",
+          pr,
+          error
+            ? "border border-rose-400/50 focus:ring-rose-400/30"
+            : "focus:ring-indigo-400/30",
+        )}
+      />
+      <div className="absolute inset-y-0 right-2 flex items-center gap-1.5">
+        {showClear && (
+          <button
+            type="button"
+            onClick={() => {
+              onChange("");
+              queueMicrotask(() => ref.current?.focus());
+            }}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white/5 text-sm text-white/55 hover:bg-white/10 hover:text-white"
+            aria-label="Очистить"
+          >
+            ×
+          </button>
+        )}
+        {right}
+      </div>
+    </div>
   );
 }
 

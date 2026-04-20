@@ -35,6 +35,27 @@ class LoginBody(BaseModel):
     password: str = Field(min_length=1)
 
 
+class RegisterBody(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=100)
+    passwordConfirm: str = Field(min_length=8, max_length=100)
+    name: str = Field(min_length=2, max_length=80)
+
+    @field_validator("name")
+    @classmethod
+    def name_trim(cls, v: str) -> str:
+        t = v.strip()
+        if len(t) < 2:
+            raise ValueError("name must be at least 2 characters after trim")
+        return t
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> Self:
+        if self.password != self.passwordConfirm:
+            raise ValueError("passwords do not match")
+        return self
+
+
 class RegisterInviteBody(BaseModel):
     token: str = Field(min_length=1)
     password: str = Field(min_length=6)

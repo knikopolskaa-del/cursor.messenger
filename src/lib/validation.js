@@ -28,14 +28,30 @@ export const rules = {
       !/^[a-zа-яёA-ZА-ЯЁ0-9_-]+$/i.test(String(v).trim()) ? msg : null,
 
   phone:
-    (msg = "Введите телефон в формате +7 (999) 000-00-00") =>
-    (v) =>
-      v.trim() && !/^\+?[\d\s\(\)\-]{7,20}$/.test(v.trim()) ? msg : null,
+    (msg = "Введите корректный номер телефона") =>
+    (v) => {
+      const s = String(v ?? "").trim();
+      if (!s) return null;
+      const digits = s.replace(/\D/g, "");
+      // Для маски +7 (...) при фокусе может появляться только "7" — не считаем это ошибкой.
+      if (digits === "" || digits === "7") return null;
+      // Полный номер РФ: 11 цифр, начинается с 7.
+      if (digits.length !== 11 || digits[0] !== "7") return msg;
+      return null;
+    },
+
+  regex:
+    (re, msg = "Некорректный формат") =>
+    (v) => {
+      const t = String(v ?? "").trim();
+      if (!t) return null;
+      return re.test(t) ? null : msg;
+    },
 };
 
-function runValidators(value, validators = []) {
+function runValidators(value, validators = [], values) {
   for (const v of validators) {
-    const err = v(value);
+    const err = v(value, values);
     if (err) return err;
   }
   return null;
@@ -51,7 +67,7 @@ export function useForm(schema) {
   const errors = useMemo(
     () =>
       Object.fromEntries(
-        Object.entries(schema).map(([k, s]) => [k, runValidators(values[k], s.validators)]),
+        Object.entries(schema).map(([k, s]) => [k, runValidators(values[k], s.validators, values)]),
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [values],

@@ -7,13 +7,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..deps import bearer_token, current_user_id
-from ..schemas import LoginBody, LoginResponse, RegisterInviteBody
+from ..schemas import LoginBody, LoginResponse, RegisterBody, RegisterInviteBody
 from ..security import hash_password, new_token, verify_password
 from ..serialize import user_public
 from ..deps import get_store
 from ..store import Store
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+def _default_user_type(email: str) -> str:
+    e = (email or "").lower().strip()
+    return "employee" if e.endswith("@sharebot.net") else "guest"
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -49,12 +53,34 @@ def logout(
     return LogoutOk()
 
 
-@router.post("/register", response_model=LoginResponse)
-def register_alias(
-    body: RegisterInviteBody,
-    store: Store = Depends(get_store),
-):
-    return complete_invite(body, store)
+@router.post("/register", response_model=LoginResponse, status_code=201)
+def register(body: RegisterBody, store: Store = Depends(get_store)):
+    email = body.email.lower().strip()
+    if store.user_by_email.get(email):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "email_taken", "message": "Email already exists"},
+        )
+    uid = store.next_id("u")
+    u = {
+        "id": uid,
+        "email": email,
+        "passwordHash": hash_password(body.password),
+        "name": body.name.strip(),
+        "title": "",
+        "department": "",
+        "phone": "",
+        "avatarUrl": "",
+        "bio": "",
+        "userType": _default_user_type(email),
+        "status": "offline",
+        "isActive": True,
+        "createdAt": datetime.now(timezone.utc),
+    }
+    store.users[uid] = u
+    token = new_token()
+    store.sessions[token] = {"token": token, "userId": uid, "expiresAt": None}
+    return LoginResponse(accessToken=token, user=user_public(u))
 
 
 @router.post("/invite/complete", response_model=LoginResponse)

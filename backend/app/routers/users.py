@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..access import is_admin, is_guest, list_channel_member_ids, can_list_directory
+from ..access import is_admin, is_guest
 from ..deps import current_user, current_user_id, get_store, require_admin
 from ..schemas import AdminPatchUserBody, CreateUserBody, PatchMeBody, UserPublic
 from ..security import hash_password
@@ -24,10 +24,13 @@ def _guest_peer_ids(store: Store, user: dict) -> set[str]:
     for g in store.groups.values():
         if uid in g.get("memberIds", []):
             allowed.update(g["memberIds"])
-    # Channels: guest can DM users from shared channels.
-    for m in store.memberships:
-        if m["userId"] == uid and m["targetType"] == "channel":
-            allowed.update(list_channel_member_ids(store, m["targetId"]))
+    # Guests can only see users they share a conversation with.
+    # Include peers from shared public/private channels via memberships table.
+    channel_ids = {m["targetId"] for m in store.memberships if m["targetType"] == "channel" and m["userId"] == uid}
+    if channel_ids:
+        for m in store.memberships:
+            if m["targetType"] == "channel" and m["targetId"] in channel_ids:
+                allowed.add(m["userId"])
     return allowed
 
 
@@ -42,25 +45,20 @@ def patch_me(
     user: Annotated[dict, Depends(current_user)],
     store: Annotated[Store, Depends(get_store)],
 ):
-    if is_guest(user):
-        raise HTTPException(
-            status_code=403,
-            detail={"error": "forbidden", "message": "Guests cannot edit profile"},
-        )
     data = body.model_dump(exclude_unset=True)
-    if "name" in data and data["name"] is not None and not is_admin(user):
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "field_not_allowed",
-                "field": "name",
-                "message": "You cannot change full name",
-            },
-        )
     if "name" in data and data["name"] is not None:
+        if is_guest(user):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "field_not_allowed",
+                    "field": "name",
+                    "message": "Guests cannot change full name",
+                },
+            )
         t = str(data["name"]).strip()
         if len(t) < 2:
-            raise HTTPException(status_code=422, detail="name too short")
+            raise HTTPException(status_code=400, detail="name too short")
         data["name"] = t
     for k, v in data.items():
         if k in user and v is not None:
@@ -74,9 +72,10 @@ def list_users(
     user: Annotated[dict, Depends(current_user)],
     store: Annotated[Store, Depends(get_store)],
 ):
-    if not can_list_directory(user):
-        raise HTTPException(status_code=403, detail={"error": "forbidden", "message": "Directory not доступен"})
     active = [u for u in store.users.values() if u.get("isActive", True)]
+    if is_guest(user):
+        allowed = _guest_peer_ids(store, user)
+        active = [u for u in active if u["id"] in allowed]
     return [user_public(u) for u in active]
 
 

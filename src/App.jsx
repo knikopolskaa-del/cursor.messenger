@@ -4,6 +4,7 @@ import { MessengerProvider, useMessenger } from "./context/MessengerContext.jsx"
 
 import AppShell from "./layout/AppShell.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
+import RegisterPage from "./pages/RegisterPage.jsx";
 import ChatPage, { AppIndexRedirect } from "./pages/ChatPage.jsx";
 import { ThreadsPage, MentionsPage, SavedPage } from "./pages/AggregatorPages.jsx";
 import MePage from "./pages/MePage.jsx";
@@ -65,6 +66,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
       <Route
         path="/app"

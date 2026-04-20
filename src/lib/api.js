@@ -14,6 +14,7 @@ export function messageFromResponseBody(data, statusText = "") {
   if (typeof data === "string" && data.trim()) return data.trim();
   const d = data?.detail;
   if (typeof d === "string") return d;
+  if (d && typeof d === "object" && typeof d.message === "string") return d.message;
   if (Array.isArray(d)) {
     const parts = d.map((x) =>
       typeof x === "object" && x != null && "msg" in x ? String(x.msg) : JSON.stringify(x),
@@ -29,6 +30,10 @@ export function messageFromResponseBody(data, statusText = "") {
 export function formatApiError(err) {
   if (err == null) return "Неизвестная ошибка";
   if (typeof err === "string") return err;
+  if (err.status === 403) return "Нет прав";
+  if (err.status === 400 && (err.data?.detail?.error === "email_taken" || err.data?.detail?.message === "Email already exists")) {
+    return "Пользователь с таким email уже зарегистрирован";
+  }
   if (err.name === "TypeError" || err.message === "Failed to fetch") {
     return `Нет связи с API (${API_BASE}). Запущен ли бэкенд?`;
   }
@@ -79,6 +84,13 @@ async function request(method, path, { body, token, skipAuth } = {}) {
 export function login(email, password) {
   return request("POST", "/auth/login", {
     body: { email, password },
+    skipAuth: true,
+  });
+}
+
+export function register(email, password, name, passwordConfirm) {
+  return request("POST", "/auth/register", {
+    body: { email, password, passwordConfirm, name },
     skipAuth: true,
   });
 }
