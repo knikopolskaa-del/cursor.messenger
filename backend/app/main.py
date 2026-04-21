@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,6 +12,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.responses import RedirectResponse
+from starlette.requests import Request
+from starlette.responses import Response
 
 from .database import SessionLocal, init_db
 from .routers import (
@@ -30,6 +35,11 @@ from .routers import (
 )
 from .seed import seed_if_empty
 
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+log = logging.getLogger("app")
 
 def _load_dotenv_if_present() -> None:
     # Minimal .env loader to satisfy local dev without extra deps.
@@ -74,6 +84,37 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Messenger API V1", version="0.1.0", lifespan=lifespan)
+
+@app.middleware("http")
+async def _log_requests(request: Request, call_next):
+    rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
+    start = time.perf_counter()
+    try:
+        response: Response = await call_next(request)
+    except Exception:
+        dur_ms = int((time.perf_counter() - start) * 1000)
+        log.exception(
+            "request error rid=%s method=%s path=%s dur_ms=%s",
+            rid,
+            request.method,
+            request.url.path,
+            dur_ms,
+        )
+        raise
+    dur_ms = int((time.perf_counter() - start) * 1000)
+    # Avoid logging bodies; log size hints and status.
+    clen = response.headers.get("content-length", "")
+    log.info(
+        "request rid=%s method=%s path=%s status=%s dur_ms=%s bytes=%s",
+        rid,
+        request.method,
+        request.url.path,
+        response.status_code,
+        dur_ms,
+        clen,
+    )
+    response.headers["x-request-id"] = rid
+    return response
 
 @app.exception_handler(RequestValidationError)
 async def _validation_error_handler(_request, exc: RequestValidationError):

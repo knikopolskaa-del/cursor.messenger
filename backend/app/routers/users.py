@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..access import is_admin, is_guest
 from ..deps import current_user, current_user_id, get_store, require_admin
 from ..schemas import AdminPatchUserBody, CreateUserBody, PatchMeBody, UserPublic
+from ..models import FileUpload
 from ..security import hash_password
 from ..serialize import user_public
 from ..store import Store
@@ -60,6 +61,18 @@ def patch_me(
         if len(t) < 2:
             raise HTTPException(status_code=400, detail="name too short")
         data["name"] = t
+    if "avatarUrl" in data and data["avatarUrl"]:
+        # Accept only uploads owned by this user (or external http(s) for demo).
+        au = str(data["avatarUrl"]).strip()
+        if au.startswith("/files/"):
+            fid = au[len("/files/") :].split("?", 1)[0].strip("/") or None
+            if not fid:
+                raise HTTPException(status_code=400, detail="Invalid avatarUrl")
+            row = store.session.get(FileUpload, fid)
+            if row is None or row.user_id != user["id"]:
+                raise HTTPException(status_code=400, detail="Invalid avatar upload")
+            data["avatarUrl"] = f"/files/{fid}"
+        # else: allow absolute URLs (seed/demo), keep as-is.
     for k, v in data.items():
         if k in user and v is not None:
             user[k] = v

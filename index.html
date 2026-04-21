@@ -5,22 +5,107 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Messenger V1</title>
 
+    <!-- Prototype-style typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+
     <!-- Tailwind via CDN for V1: fewer config files, fast iteration.
          Later you can switch to compiled Tailwind when you add a design system. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: "class",
         theme: {
           extend: {
             boxShadow: {
               "soft": "0 10px 30px rgba(0,0,0,.08)",
+              "paper": "0 18px 50px rgba(17, 24, 39, .10)",
+            },
+            fontFamily: {
+              proto: ["Caveat", "ui-rounded", "system-ui", "sans-serif"],
+              ui: ["Nunito", "ui-sans-serif", "system-ui", "sans-serif"],
             },
           },
         },
       };
     </script>
+
+    <script>
+      // Theme boot: default light, persist in localStorage.
+      // Must run before paint to avoid flash.
+      (function () {
+        try {
+          var t = localStorage.getItem("cm_theme");
+          var theme = t === "dark" ? "dark" : "light";
+          var root = document.documentElement;
+          root.dataset.theme = theme;
+          root.classList.toggle("dark", theme === "dark");
+        } catch (e) {
+          document.documentElement.dataset.theme = "light";
+          document.documentElement.classList.remove("dark");
+        }
+      })();
+    </script>
+
+    <style>
+      :root {
+        --radius-xl: 22px;
+      }
+
+      /* Light theme (auth-like) */
+      html[data-theme="light"] {
+        --bg: #d7e8f2;
+        --bg2: #eef6fb;
+        --panel: rgba(255, 255, 255, 0.6);
+        --surface: #f3f4f2;
+        --surface2: #ffffff;
+        --border: rgba(15, 23, 42, 0.10);
+        --fg: rgba(15, 23, 42, 0.92);
+        --muted: rgba(51, 65, 85, 0.75);
+        --muted2: rgba(51, 65, 85, 0.60);
+
+        --primary: rgba(15, 23, 42, 0.90);
+        --primaryBg: rgba(255, 255, 255, 1);
+        --primaryBorder: rgba(148, 163, 184, 0.55);
+        --ring: rgba(125, 211, 252, 0.70);
+
+        --danger: rgba(225, 29, 72, 0.85);
+        --dangerBg: rgba(255, 241, 242, 1);
+      }
+
+      /* Dark theme (register-like) */
+      html[data-theme="dark"] {
+        --bg: #0b1020;
+        --bg2: #0f1730;
+        --panel: rgba(255, 255, 255, 0.05);
+        --surface: rgba(15, 23, 48, 0.80);
+        --surface2: rgba(2, 6, 23, 0.35);
+        --border: rgba(255, 255, 255, 0.10);
+        --fg: rgba(248, 250, 252, 0.95);
+        --muted: rgba(226, 232, 240, 0.78);
+        --muted2: rgba(226, 232, 240, 0.62);
+
+        --primary: rgba(248, 250, 252, 0.95);
+        --primaryBg: rgba(255, 255, 255, 0.10);
+        --primaryBorder: rgba(255, 255, 255, 0.10);
+        --ring: rgba(125, 211, 252, 0.20);
+
+        --danger: rgba(254, 202, 202, 0.95);
+        --dangerBg: rgba(251, 113, 133, 0.12);
+      }
+
+      body {
+        font-family: Nunito, ui-sans-serif, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+      }
+    </style>
   </head>
-  <body class="bg-slate-950 text-slate-100">
+  <body class="bg-[color:var(--bg)] text-[color:var(--fg)]">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

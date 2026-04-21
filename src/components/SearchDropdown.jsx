@@ -69,7 +69,7 @@ export function SearchDropdown({ query, onClose }) {
 
   if (loading && rows.length === 0 && localChannels.length === 0 && localUsers.length === 0) {
     return (
-      <div className="rounded-xl border border-white/10 bg-slate-900 p-3 text-xs text-white/50">
+      <div className="rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] p-4 text-xs text-[color:var(--muted)] shadow-paper backdrop-blur">
         Загрузка...
       </div>
     );
@@ -88,17 +88,17 @@ export function SearchDropdown({ query, onClose }) {
 
   if (!hasApi && !hasLocal && !loading) {
     return (
-      <div className="rounded-xl border border-white/10 bg-slate-900 p-3 text-xs text-white/50">
+      <div className="rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] p-4 text-xs text-[color:var(--muted)] shadow-paper backdrop-blur">
         Ничего не найдено
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900 py-2">
+    <div className="rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] py-2 shadow-paper backdrop-blur">
       {localChannels.length > 0 && (
         <div>
-          <div className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-white/35">
+          <div className="px-4 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted2)]">
             Каналы
           </div>
           {localChannels.map((c) => (
@@ -106,9 +106,9 @@ export function SearchDropdown({ query, onClose }) {
               key={c.id}
               type="button"
               onClick={() => go(`/app/c/${c.id}`)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white/80 hover:bg-white/5"
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-[color:var(--muted)] hover:bg-[color:var(--surface2)]/70 hover:text-[color:var(--fg)]"
             >
-              <span className="text-white/40">#</span> {c.title}
+              <span className="text-[color:var(--muted2)]">#</span> {c.title}
             </button>
           ))}
         </div>
@@ -116,7 +116,7 @@ export function SearchDropdown({ query, onClose }) {
 
       {localUsers.length > 0 && (
         <div>
-          <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-white/35">
+          <div className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted2)]">
             Люди
           </div>
           {localUsers.map((u) => (
@@ -124,7 +124,7 @@ export function SearchDropdown({ query, onClose }) {
               key={u.id}
               type="button"
               onClick={() => go(`/app/d/${u.id}`)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-white/80 hover:bg-white/5"
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-[color:var(--muted)] hover:bg-[color:var(--surface2)]/70 hover:text-[color:var(--fg)]"
             >
               <Avatar user={u} size="sm" />
               <span className="min-w-0 flex-1 truncate">{u.name}</span>
@@ -135,7 +135,7 @@ export function SearchDropdown({ query, onClose }) {
 
       {rows.length > 0 && (
         <div>
-          <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-white/35">
+          <div className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--muted2)]">
             По серверу
           </div>
           {rows.slice(0, 12).map((r, idx) => (
@@ -143,10 +143,10 @@ export function SearchDropdown({ query, onClose }) {
               key={`${r.type}-${r.id ?? idx}-${idx}`}
               type="button"
               onClick={() => go(pathForResult(r))}
-              className="flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-white/5"
+              className="flex w-full flex-col gap-0.5 px-4 py-2.5 text-left hover:bg-[color:var(--surface2)]/70"
             >
-              <div className="text-[10px] uppercase text-white/35">{r.type}</div>
-              <div className="line-clamp-2 text-xs text-white/70">
+              <div className="text-[10px] font-semibold uppercase text-[color:var(--muted2)]">{r.type}</div>
+              <div className="line-clamp-2 text-xs text-[color:var(--muted)]">
                 {r.title ?? r.snippet ?? r.id}
               </div>
             </button>

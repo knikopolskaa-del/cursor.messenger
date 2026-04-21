@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from collections.abc import Generator
 
 from sqlalchemy import create_engine, event
@@ -8,7 +9,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from .models import Base
 
-_DEFAULT_URL = "sqlite:///./messenger.db"
+_DEFAULT_SQLITE_PATH = (Path(__file__).resolve().parents[1] / "messenger.db").as_posix()
+_DEFAULT_URL = f"sqlite:///{_DEFAULT_SQLITE_PATH}"
 
 DATABASE_URL = os.environ.get("MESSENGER_DATABASE_URL", _DEFAULT_URL)
 

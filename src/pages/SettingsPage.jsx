@@ -8,13 +8,15 @@ export default function SettingsPage() {
       <div className="mt-5 grid max-w-2xl gap-4">
         <Card title="Внешний вид">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-white/75">Тема</div>
-            <span className="rounded-md bg-white/5 px-2 py-1 text-xs text-white/60">Тёмная</span>
+            <div className="text-sm text-[color:var(--muted)]">Тема</div>
+            <span className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-xs font-semibold text-[color:var(--fg)]/85">
+              Переключатель вверху справа
+            </span>
           </div>
         </Card>
 
         <Card title="Уведомления">
-          <div className="space-y-2.5 text-sm text-white/70">
+          <div className="space-y-2.5 text-sm text-[color:var(--muted)]">
             {[
               ["Упоминания", true],
               ["Личные сообщения", true],
@@ -25,7 +27,7 @@ export default function SettingsPage() {
                 <input
                   type="checkbox"
                   defaultChecked={defaultChecked}
-                  className="accent-indigo-400"
+                  className="accent-sky-300"
                 />
                 {label}
               </label>
@@ -35,8 +37,10 @@ export default function SettingsPage() {
 
         <Card title="Язык и регион">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-white/75">Язык</div>
-            <span className="rounded-md bg-white/5 px-2 py-1 text-xs text-white/60">Русский</span>
+            <div className="text-sm text-[color:var(--muted)]">Язык</div>
+            <span className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-xs font-semibold text-[color:var(--fg)]/85">
+              Русский
+            </span>
           </div>
         </Card>
       </div>

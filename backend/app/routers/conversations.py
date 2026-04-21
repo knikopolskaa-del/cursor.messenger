@@ -131,6 +131,10 @@ def post_message(
                 "mimeType": a.mimeType or "application/octet-stream",
                 "url": a.url,
             }
+        # Ensure message + attachments are persisted before binding uploads.
+        # Otherwise SQLAlchemy can flush UPDATE(file_uploads.message_id=mid) before
+        # INSERT(messages.id=mid), which violates SQLite FK constraint.
+        store.session.flush()
         bind_uploads_to_message(store.session, mid, atts)
     if (body.text or "").strip().strip("\u2060"):
         _create_mentions(store, body.text, user["id"], ctype, cid, mid)

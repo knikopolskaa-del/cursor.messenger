@@ -117,10 +117,9 @@ export function NewDmModal() {
               setTouched(true);
             }}
             className={[
-              "h-10 w-full rounded-lg bg-white/5 px-3 text-sm text-white focus:outline-none focus:ring-2",
-              pickedError
-                ? "border border-rose-400/50 focus:ring-rose-400/30"
-                : "focus:ring-indigo-400/30",
+              "h-11 w-full rounded-2xl border bg-[color:var(--surface2)] px-4 text-sm text-[color:var(--fg)] shadow-paper outline-none transition",
+              "focus:ring-4 focus:ring-[color:var(--ring)]",
+              pickedError ? "border-rose-300/40" : "border-[color:var(--border)]",
             ].join(" ")}
           >
             {otherUsers.length === 0 && <option value="">Нет доступных сотрудников</option>}
@@ -133,18 +132,18 @@ export function NewDmModal() {
         </Field>
 
         {pickedUser && (
-          <div className="flex items-center gap-3 rounded-lg bg-white/5 p-3">
+          <div className="flex items-center gap-3 rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] p-4 shadow-paper backdrop-blur">
             <Avatar user={pickedUser} size="sm" />
             <div className="min-w-0">
               <div className="text-sm font-semibold">{pickedUser.name}</div>
-              <div className="text-xs text-white/45">
+              <div className="text-xs text-[color:var(--muted)]">
                 {pickedUser.title} · {statusLabel(pickedUser.status)}
               </div>
             </div>
           </div>
         )}
 
-        {err && <div className="text-sm text-rose-300">{err}</div>}
+        {err && <div className="text-sm font-semibold text-[color:var(--danger)]">{err}</div>}
 
         <div className="flex gap-2">
           <Button onClick={handleOpen} disabled={!picked || busy}>
@@ -257,19 +256,19 @@ function CreateForm({ kind, token, onCreated, onCancel }) {
           placeholder={isChannel ? "komanda-ux" : "Команда запуска"}
         />
         {isChannel && (
-          <div className="mt-1 text-[11px] text-white/35">
+          <div className="mt-1 text-[11px] text-[color:var(--muted2)]">
             Только буквы, цифры, дефис и подчёркивание — без пробелов
           </div>
         )}
       </Field>
 
       {isChannel && (
-        <label className="flex items-center gap-2 text-sm text-white/70">
+        <label className="flex items-center gap-2 text-sm text-[color:var(--muted)]">
           <input
             type="checkbox"
             checked={isPrivate}
             onChange={(e) => setIsPrivate(e.target.checked)}
-            className="accent-indigo-400"
+            className="accent-sky-300"
           />
           Приватный канал
         </label>
@@ -277,7 +276,7 @@ function CreateForm({ kind, token, onCreated, onCancel }) {
 
       {!isChannel && (
         <div className="space-y-3">
-          <div className="text-xs font-semibold uppercase tracking-wide text-white/45">
+          <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted2)]">
             Добавить сотрудников
           </div>
 
@@ -291,11 +290,11 @@ function CreateForm({ kind, token, onCreated, onCancel }) {
                     key={id}
                     type="button"
                     onClick={() => toggleMember(id)}
-                    className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/20 px-2 py-1 text-xs text-indigo-100 hover:bg-indigo-500/30"
+                    className="inline-flex items-center gap-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-xs font-semibold text-[color:var(--fg)]/85 shadow-paper hover:bg-[color:var(--surface2)]/90"
                   >
                     <Avatar user={u} size="sm" />
                     <span>{u.name}</span>
-                    <span className="text-white/50" aria-hidden>
+                    <span className="text-[color:var(--muted2)]" aria-hidden>
                       ×
                     </span>
                   </button>
@@ -312,11 +311,11 @@ function CreateForm({ kind, token, onCreated, onCancel }) {
             />
           </Field>
 
-          <div className="max-h-44 overflow-auto rounded-lg border border-white/10 bg-white/[0.03]">
+          <div className="max-h-44 overflow-auto rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] shadow-paper backdrop-blur">
             {otherUsers.length === 0 ? (
-              <div className="p-3 text-xs text-white/40">Нет других сотрудников в каталоге.</div>
+              <div className="p-4 text-xs text-[color:var(--muted)]">Нет других сотрудников в каталоге.</div>
             ) : filteredForPicker.length === 0 ? (
-              <div className="p-3 text-xs text-white/40">Никого не найдено.</div>
+              <div className="p-4 text-xs text-[color:var(--muted)]">Никого не найдено.</div>
             ) : (
               filteredForPicker.map((u) => {
                 const on = selectedMemberIds.includes(u.id);
@@ -327,14 +326,16 @@ function CreateForm({ kind, token, onCreated, onCancel }) {
                     onClick={() => toggleMember(u.id)}
                     className={[
                       "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition",
-                      on ? "bg-indigo-500/15 text-white" : "text-white/75 hover:bg-white/5",
+                      on
+                        ? "bg-[color:var(--surface2)] text-[color:var(--fg)]"
+                        : "text-[color:var(--muted)] hover:bg-[color:var(--surface2)]/70 hover:text-[color:var(--fg)]",
                     ].join(" ")}
                   >
                     <Avatar user={u} size="sm" />
                     <span className="min-w-0 flex-1 truncate">{u.name}</span>
-                    <span className="text-[10px] text-white/35">{userTypeLabel(u.userType)}</span>
+                    <span className="text-[10px] text-[color:var(--muted2)]">{userTypeLabel(u.userType)}</span>
                     {on && (
-                      <span className="text-xs text-indigo-300" aria-hidden>
+                      <span className="text-xs text-[color:var(--fg)]" aria-hidden>
                         {"\u2713"}
                       </span>
                     )}
@@ -346,7 +347,7 @@ function CreateForm({ kind, token, onCreated, onCancel }) {
         </div>
       )}
 
-      {err && <div className="text-sm text-rose-300">{err}</div>}
+      {err && <div className="text-sm font-semibold text-[color:var(--danger)]">{err}</div>}
 
       <div className="flex gap-2">
         <Button onClick={handleSubmit} disabled={busy}>

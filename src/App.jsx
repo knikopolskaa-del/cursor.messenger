@@ -10,6 +10,7 @@ import { ThreadsPage, MentionsPage, SavedPage } from "./pages/AggregatorPages.js
 import MePage from "./pages/MePage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import { ThemeToggleFloating } from "./components/ThemeToggle.jsx";
 import {
   NewHubModal,
   NewChannelModal,
@@ -104,6 +105,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <MessengerProvider>
+      <ThemeToggleFloating />
       <AppRoutes />
     </MessengerProvider>
   );

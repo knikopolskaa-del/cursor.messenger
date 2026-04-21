@@ -8,51 +8,46 @@ import { Avatar, Button, Card, Input } from "./ui.jsx";
 
 /** Изображения с URL `/files/…` грузим с Bearer, остальные — как есть. */
 export function AuthScopedImage({ url, token, alt, className }) {
-  const [blobUrl, setBlobUrl] = useState("");
-  const revokeRef = useRef(null);
   const needsAuth = typeof url === "string" && url.startsWith("/files/");
   const abs = absoluteAssetUrl(url);
+  const [src, setSrc] = useState("");
 
   useEffect(() => {
-    if (!needsAuth || !token || !url) {
-      setBlobUrl("");
+    if (!url) {
+      setSrc("");
       return undefined;
     }
+    if (!needsAuth) {
+      setSrc(abs);
+      return undefined;
+    }
+    if (!token) {
+      setSrc("");
+      return undefined;
+    }
+    // Don't use fetch() to `/files/{id}`: backend redirects to Object Storage and
+    // browser blocks that redirect in XHR/fetch due to CORS.
+    // Instead ask backend for presigned URL (same-origin JSON).
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(abs, { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok || cancelled) return;
-        const blob = await res.blob();
-        if (cancelled) return;
-        if (revokeRef.current) URL.revokeObjectURL(revokeRef.current);
-        const u = URL.createObjectURL(blob);
-        revokeRef.current = u;
-        setBlobUrl(u);
+        const out = await api.getFileUrl(token, url);
+        if (!cancelled) setSrc(out?.url || "");
       } catch {
-        if (!cancelled) setBlobUrl("");
+        if (!cancelled) setSrc("");
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [abs, needsAuth, token, url]);
-
-  useEffect(
-    () => () => {
-      if (revokeRef.current) {
-        URL.revokeObjectURL(revokeRef.current);
-        revokeRef.current = null;
-      }
-    },
-    [],
-  );
-
-  const src = needsAuth ? blobUrl : abs;
   if (!src) {
     return (
       <div
-        className={cx("animate-pulse rounded-lg bg-white/10", className)}
+        className={cx(
+          "animate-pulse rounded-2xl border border-[color:var(--border)] bg-[color:var(--panel)]",
+          className,
+        )}
         aria-hidden
       />
     );
@@ -61,16 +56,50 @@ export function AuthScopedImage({ url, token, alt, className }) {
 }
 
 async function downloadAttachment(url, token, filename) {
-  const abs = absoluteAssetUrl(url);
-  const res = await fetch(abs, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error("Не удалось скачать файл");
-  const blob = await res.blob();
-  const href = URL.createObjectURL(blob);
+  const href = String(url || "");
+  const needsAuth = href.startsWith("/files/");
+  const abs = absoluteAssetUrl(href);
+  let finalUrl = abs;
+  if (needsAuth) {
+    const out = await api.getFileUrl(token, href);
+    finalUrl = out?.url || "";
+  }
+  if (!finalUrl) throw new Error("Не удалось скачать файл");
   const a = document.createElement("a");
-  a.href = href;
+  a.href = finalUrl;
   a.download = filename || "download";
+  a.target = "_blank";
+  a.rel = "noreferrer";
   a.click();
-  URL.revokeObjectURL(href);
+}
+
+async function openAttachmentInBrowser(url, token) {
+  const href = String(url || "");
+  const needsAuth = href.startsWith("/files/");
+  const abs = absoluteAssetUrl(href);
+  let finalUrl = abs;
+  if (needsAuth) {
+    const out = await api.getFileUrl(token, href);
+    finalUrl = out?.url || "";
+  }
+  if (!finalUrl) throw new Error("Не удалось открыть файл");
+  window.open(finalUrl, "_blank", "noopener,noreferrer");
+}
+
+function DownloadIcon({ className }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+    >
+      <path d="M11 3a1 1 0 0 1 2 0v8.17l2.59-2.58a1 1 0 1 1 1.41 1.42l-4.3 4.29a1 1 0 0 1-1.4 0l-4.3-4.29a1 1 0 1 1 1.41-1.42L11 11.17V3Z" />
+      <path d="M5 14a1 1 0 0 1 1 1v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3a1 1 0 1 1 2 0v3a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-3a1 1 0 0 1 1-1Z" />
+    </svg>
+  );
 }
 
 export function ChatSkeleton() {
@@ -78,11 +107,11 @@ export function ChatSkeleton() {
     <div className="animate-pulse space-y-5 px-5 py-4">
       {[80, 60, 90, 50, 70].map((w, i) => (
         <div key={i} className="flex gap-3">
-          <div className="h-9 w-9 flex-shrink-0 rounded-xl bg-white/5" />
+          <div className="h-9 w-9 flex-shrink-0 rounded-2xl border border-[color:var(--border)] bg-[color:var(--panel)]" />
           <div className="flex-1 space-y-2 pt-1">
-            <div className="h-2.5 w-28 rounded bg-white/5" />
-            <div className="h-2.5 rounded bg-white/5" style={{ width: `${w}%` }} />
-            <div className="h-2.5 rounded bg-white/5" style={{ width: `${w * 0.6}%` }} />
+            <div className="h-2.5 w-28 rounded bg-[color:var(--panel)]" />
+            <div className="h-2.5 rounded bg-[color:var(--panel)]" style={{ width: `${w}%` }} />
+            <div className="h-2.5 rounded bg-[color:var(--panel)]" style={{ width: `${w * 0.6}%` }} />
           </div>
         </div>
       ))}
@@ -124,22 +153,22 @@ export function Message({
   return (
     <div
       data-message-id={message.id}
-      className="group flex gap-3 rounded-xl border border-transparent p-3 hover:border-white/10 hover:bg-white/[0.02]"
+      className="group flex gap-3 rounded-[var(--radius-xl)] border border-transparent p-3 hover:border-[color:var(--border)] hover:bg-[color:var(--panel)]/70"
     >
       <Avatar user={author} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-sm font-semibold text-white/95">{author.name}</span>
-          <span className="text-xs text-white/40">{formatTime(message.createdAt)}</span>
+          <span className="text-sm font-semibold text-[color:var(--fg)]">{author.name}</span>
+          <span className="text-xs text-[color:var(--muted2)]">{formatTime(message.createdAt)}</span>
           {message.replyToId && (
-            <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] text-white/50">
+            <span className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-2 py-1 text-[10px] text-[color:var(--muted)]">
               ответ
             </span>
           )}
         </div>
 
         {showText && (
-          <div className="mt-1 whitespace-pre-wrap text-sm text-white/85">{message.text}</div>
+          <div className="mt-1 whitespace-pre-wrap text-sm text-[color:var(--fg)]/90">{message.text}</div>
         )}
 
         {message.attachments?.length > 0 && (
@@ -147,50 +176,82 @@ export function Message({
             {message.attachments.map((a) => (
               <div key={a.id ?? a.url} className="space-y-1.5">
                 {a.type === "image" && a.url ? (
-                  <AuthScopedImage
-                    url={a.url}
-                    token={token}
-                    alt={a.name || ""}
-                    className="max-h-64 max-w-full rounded-lg border border-white/10 object-contain"
-                  />
-                ) : (
-                  <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-                    <div className="min-w-0">
-                      <div className="truncate text-xs font-semibold">
-                        {a.type === "image" ? "IMG" : a.type === "video" ? "VID" : "FILE"} {a.name}
-                      </div>
-                      <div className="text-[11px] text-white/40">{a.size}</div>
-                    </div>
-                    {a.url ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          downloadAttachment(a.url, token, a.name).catch(() => {
-                            /* ignore */
-                          })
-                        }
-                        className="rounded-lg bg-white/5 px-2 py-1 text-xs text-white/65 hover:bg-white/10"
-                      >
-                        Скачать
-                      </button>
-                    ) : (
-                      <span className="text-[11px] text-white/35">Нет ссылки</span>
-                    )}
-                  </div>
-                )}
-                {a.type === "image" && a.url && (
-                  <div className="flex justify-end">
+                  <div className="relative inline-block max-w-full">
                     <button
                       type="button"
                       onClick={() =>
-                        downloadAttachment(a.url, token, a.name).catch(() => {
+                        openAttachmentInBrowser(a.url, token).catch(() => {
                           /* ignore */
                         })
                       }
-                      className="rounded-lg bg-white/5 px-2 py-1 text-[11px] text-white/55 hover:bg-white/10"
+                      className="block"
+                      title="Открыть"
                     >
-                      Скачать
+                      <AuthScopedImage
+                        url={a.url}
+                        token={token}
+                        alt={a.name || ""}
+                        className="max-h-64 max-w-full rounded-2xl border border-[color:var(--border)] object-contain shadow-paper"
+                      />
                     </button>
+                    {a.url && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadAttachment(a.url, token, a.name).catch(() => {
+                            /* ignore */
+                          });
+                        }}
+                        className="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-black/30 text-white/85 backdrop-blur hover:bg-black/45"
+                        aria-label="Скачать"
+                        title="Скачать"
+                      >
+                        <DownloadIcon />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--panel)] px-3 py-2 shadow-paper backdrop-blur">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        a.url
+                          ? openAttachmentInBrowser(a.url, token).catch(() => {
+                              /* ignore */
+                            })
+                          : undefined
+                      }
+                      disabled={!a.url}
+                      className={cx(
+                        "min-w-0 flex-1 text-left",
+                        a.url ? "cursor-pointer" : "cursor-not-allowed opacity-70",
+                      )}
+                      title={a.url ? "Открыть" : "Нет ссылки"}
+                    >
+                      <div className="truncate text-xs font-semibold">
+                        {a.type === "image" ? "IMG" : a.type === "video" ? "VID" : "FILE"} {a.name}
+                      </div>
+                      <div className="text-[11px] text-[color:var(--muted2)]">{a.size}</div>
+                    </button>
+                    {a.url ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadAttachment(a.url, token, a.name).catch(() => {
+                            /* ignore */
+                          });
+                        }}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] text-[color:var(--fg)]/80 hover:bg-[color:var(--surface2)]/90"
+                        aria-label="Скачать"
+                        title="Скачать"
+                      >
+                        <DownloadIcon />
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-[color:var(--muted2)]">Нет ссылки</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -203,9 +264,9 @@ export function Message({
             {message.reactions.map((r) => (
               <span
                 key={r.emoji}
-                className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-1 text-xs text-white/70"
+                className="inline-flex items-center gap-1 rounded-full border border-[color:var(--border)] bg-[color:var(--panel)] px-2 py-1 text-xs text-[color:var(--muted)]"
               >
-                {r.emoji} <span className="text-white/40">{r.userIds.length}</span>
+                {r.emoji} <span className="text-[color:var(--muted2)]">{r.userIds.length}</span>
               </span>
             ))}
           </div>
@@ -215,7 +276,7 @@ export function Message({
           <div
             className={cx(
               "mt-1 text-[11px]",
-              saveErr ? "text-rose-300" : "text-emerald-300/90",
+              saveErr ? "text-[color:var(--danger)]" : "text-emerald-600/90",
             )}
           >
             {saveErr || saveHint}
@@ -229,7 +290,7 @@ export function Message({
           <button
             type="button"
             onClick={handleSaveMessage}
-            className="rounded-lg bg-white/5 px-2 py-1 text-xs text-white/65 hover:bg-white/10"
+            className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-xs font-semibold text-[color:var(--fg)]/85 hover:bg-[color:var(--surface2)]/90"
           >
             Сохранить
           </button>
@@ -317,7 +378,7 @@ export function Composer({ onSend, disabled }) {
   }
 
   return (
-    <div className="border-t border-white/10 p-4">
+    <div className="border-t border-[color:var(--border)] bg-[color:var(--panel)] p-4 shadow-paper backdrop-blur">
       <input
         ref={fileRef}
         type="file"
@@ -330,17 +391,17 @@ export function Composer({ onSend, disabled }) {
           {files.map((f) => (
             <div
               key={f.key}
-              className="flex max-w-[220px] items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-[11px]"
+              className="flex max-w-[240px] items-center gap-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-[11px] shadow-paper"
             >
-              <span className="min-w-0 flex-1 truncate text-white/75">{f.name}</span>
-              <span className="flex-shrink-0 text-white/40">{formatAttachmentSize(f.sizeBytes)}</span>
-              {f.uploading && <span className="text-white/35">…</span>}
-              {f.error && <span className="text-rose-300" title={f.error}>!</span>}
+              <span className="min-w-0 flex-1 truncate text-[color:var(--fg)]/85">{f.name}</span>
+              <span className="flex-shrink-0 text-[color:var(--muted2)]">{formatAttachmentSize(f.sizeBytes)}</span>
+              {f.uploading && <span className="text-[color:var(--muted2)]">…</span>}
+              {f.error && <span className="text-[color:var(--danger)]" title={f.error}>!</span>}
               {!f.uploading && (
                 <button
                   type="button"
                   onClick={() => removeFile(f.key)}
-                  className="text-white/45 hover:text-white"
+                  className="text-[color:var(--muted)] hover:text-[color:var(--fg)]"
                   aria-label="Убрать вложение"
                 >
                   ×
@@ -352,8 +413,8 @@ export function Composer({ onSend, disabled }) {
       )}
       <div
         className={cx(
-          "flex items-end gap-3 rounded-xl border bg-white/[0.03] p-3 transition",
-          canSend ? "border-indigo-400/30" : "border-white/10",
+          "flex items-end gap-3 rounded-[var(--radius-xl)] border bg-[color:var(--surface)] p-3 shadow-paper transition",
+          canSend ? "border-[color:var(--primaryBorder)]" : "border-[color:var(--border)]",
         )}
       >
         <textarea
@@ -361,14 +422,14 @@ export function Composer({ onSend, disabled }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Написать сообщение…"
-          className="min-h-[44px] w-full resize-none bg-transparent text-sm text-white/85 placeholder:text-white/30 focus:outline-none"
+          className="min-h-[44px] w-full resize-none bg-transparent text-sm text-[color:var(--fg)]/90 placeholder:text-[color:var(--muted2)] focus:outline-none"
         />
         <div className="flex gap-2">
           <button
             type="button"
             disabled={disabled || !token}
             onClick={() => fileRef.current?.click()}
-            className="h-9 rounded-lg bg-white/5 px-3 text-xs text-white/65 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-11 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-4 text-xs font-semibold text-[color:var(--fg)]/80 hover:bg-[color:var(--surface2)]/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Прикрепить
           </button>
@@ -377,10 +438,10 @@ export function Composer({ onSend, disabled }) {
             disabled={!canSend}
             onClick={handleSendClick}
             className={cx(
-              "h-9 rounded-lg px-3 text-xs font-semibold transition",
+              "h-11 rounded-2xl border px-4 text-xs font-semibold transition",
               !canSend
-                ? "bg-indigo-500/30 text-white/30 cursor-not-allowed"
-                : "bg-indigo-500 text-white hover:bg-indigo-400",
+                ? "cursor-not-allowed border-[color:var(--border)] bg-[color:var(--primaryBg)] text-[color:var(--muted2)]"
+                : "border-[color:var(--primaryBorder)] bg-[color:var(--primaryBg)] text-[color:var(--primary)] hover:bg-[color:var(--primaryBg)]/90",
             )}
           >
             Отправить

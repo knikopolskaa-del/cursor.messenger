@@ -3,7 +3,76 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useMessenger } from "../context/MessengerContext.jsx";
 import * as api from "../lib/api.js";
 import { useForm, rules } from "../lib/validation.js";
-import { Card, Button, InputV2 as Input, Field } from "../components/ui.jsx";
+
+function Label({ children }) {
+  return <div className="text-[12px] font-semibold text-slate-200/85">{children}</div>;
+}
+
+function FieldHint({ children }) {
+  return <div className="mt-1 text-[11px] text-slate-300/70">{children}</div>;
+}
+
+function FieldError({ children }) {
+  if (!children) return null;
+  return <div className="mt-1 text-[11px] font-semibold text-rose-200/90">{children}</div>;
+}
+
+function TextInput({
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+  type = "text",
+  right,
+  error,
+  maxLength,
+  inputMode,
+}) {
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        type={type}
+        inputMode={inputMode}
+        maxLength={maxLength}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        placeholder={placeholder}
+        className={[
+          "h-11 w-full rounded-2xl border bg-slate-950/40 px-4 pr-20 text-sm text-slate-100",
+          "shadow-[inset_0_1px_0_rgba(255,255,255,.06)] outline-none backdrop-blur transition",
+          "placeholder:text-slate-400/70",
+          error
+            ? "border-rose-300/40 focus:border-rose-200/60 focus:ring-4 focus:ring-rose-300/20"
+            : "border-white/10 focus:border-white/20 focus:ring-4 focus:ring-sky-200/10",
+        ].join(" ")}
+      />
+      {right && <div className="absolute inset-y-0 right-3 flex items-center">{right}</div>}
+    </div>
+  );
+}
+
+function PaperButton({ onClick, disabled, children, variant = "primary" }) {
+  const base =
+    "h-11 w-full rounded-2xl border px-4 text-sm font-semibold transition focus:outline-none focus:ring-4";
+  const cls =
+    variant === "ghost"
+      ? [
+          base,
+          "border-white/10 bg-white/5 text-slate-100 hover:bg-white/7 focus:ring-sky-200/15",
+          disabled ? "cursor-not-allowed opacity-60 hover:bg-white/5" : "",
+        ].join(" ")
+      : [
+          base,
+          "border-white/10 bg-white/10 text-slate-50 hover:bg-white/15 focus:ring-sky-200/20",
+          disabled ? "cursor-not-allowed opacity-60 hover:bg-white/10" : "",
+        ].join(" ");
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className={cls}>
+      {children}
+    </button>
+  );
+}
 
 const RE_FIO = /^[А-Яа-яЁё\s\-]+$/;
 const RE_TITLE = /^[A-Za-zА-Яа-яЁё\s\-]+$/;
@@ -149,9 +218,9 @@ export default function RegisterPage() {
     const show =
       pwChecked || Boolean(form.field("password").error) || String(form.values.password ?? "").length > 0;
     const cls = (ok) => {
-      if (!show) return "text-white/40";
-      if (info.ok) return "text-emerald-300/90";
-      return ok ? "text-white/40" : "text-rose-300";
+      if (!show) return "text-slate-300/50";
+      if (info.ok) return "text-emerald-200/90";
+      return ok ? "text-slate-300/55" : "text-rose-200/90";
     };
     return (
       <div className="mt-1 space-y-0.5 text-[11px]">
@@ -165,105 +234,158 @@ export default function RegisterPage() {
   })();
 
   return (
-    <div className="grid min-h-dvh place-items-center bg-slate-950 p-6">
-      <div className="w-full max-w-md space-y-6">
-        <div>
-          <div className="text-2xl font-semibold">Регистрация</div>
-        </div>
+    <div className="relative grid min-h-dvh place-items-center overflow-hidden bg-[#0b1020] p-6 font-ui text-slate-100">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-24 -top-24 h-[520px] w-[520px] rounded-full bg-sky-400/10 blur-3xl" />
+        <div className="absolute -bottom-40 -right-24 h-[620px] w-[620px] rounded-full bg-fuchsia-400/10 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,.06),transparent_40%),radial-gradient(circle_at_80%_25%,rgba(255,255,255,.05),transparent_45%),radial-gradient(circle_at_50%_90%,rgba(255,255,255,.04),transparent_50%)] opacity-70" />
+      </div>
 
-        <Card title="Создать аккаунт">
-          <div className="space-y-4">
-            <Field label="E-mail" error={form.field("email").error}>
-              <Input {...form.field("email")} type="email" placeholder="user@gmail.com" maxLength={100} />
-            </Field>
-
-            <Field label="ФИО" error={form.field("name").error}>
-              <Input
-                {...form.field("name")}
-                placeholder="Иванов Иван"
-                maxLength={80}
-                onChange={(v) => form.field("name").onChange(filterByAllowedCharset(v, /[А-Яа-яЁё\s\-]/))}
-              />
-            </Field>
-
-            <Field label="Пароль" error={form.field("password").error}>
-              <Input
-                {...form.field("password")}
-                type={showPassword ? "text" : "password"}
-                placeholder="Qwerty!234"
-                maxLength={100}
-                onChange={(v) => form.field("password").onChange(filterByAllowedCharset(v, /[A-Za-z0-9!@#$%^&*?_\-]/))}
-                right={
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((x) => !x)}
-                    className="inline-flex h-7 items-center rounded-md bg-white/5 px-2 text-[11px] text-white/55 hover:bg-white/10 hover:text-white"
-                  >
-                    {showPassword ? "Скрыть" : "Показать"}
-                  </button>
-                }
-              />
-              {passwordHint}
-            </Field>
-
-            <Field label="Подтверждение пароля" error={form.field("confirmPassword").error}>
-              <Input
-                {...form.field("confirmPassword")}
-                type={showPassword ? "text" : "password"}
-                placeholder="Qwerty!234"
-                maxLength={100}
-                onChange={(v) =>
-                  form.field("confirmPassword").onChange(filterByAllowedCharset(v, /[A-Za-z0-9!@#$%^&*?_\-]/))
-                }
-              />
-            </Field>
-
-            <Field label="Должность" error={form.field("title").error}>
-              <Input
-                {...form.field("title")}
-                placeholder="Дизайнер"
-                maxLength={150}
-                onChange={(v) =>
-                  form.field("title").onChange(filterByAllowedCharset(v, /[A-Za-zА-Яа-яЁё\s\-]/))
-                }
-              />
-            </Field>
-
-            <Field label="Отдел" error={form.field("department").error}>
-              <Input {...form.field("department")} placeholder="Дизайн" maxLength={200} />
-            </Field>
-
-            <Field label="Телефон" error={form.field("phone").error}>
-              <Input
-                {...form.field("phone")}
-                type="tel"
-                inputMode="tel"
-                placeholder="+7 (999) 000-00-00"
-                maxLength={32}
-              />
-            </Field>
-
-            {apiError && (
-              <div className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-300">
-                {apiErrorText}
+      <div className="relative w-full max-w-lg">
+        <div className="rounded-[28px] border border-white/10 bg-white/5 p-2 shadow-paper backdrop-blur">
+          <div className="rounded-[22px] border border-white/10 bg-[#0f1730]/80 px-8 py-8">
+            <div className="text-center">
+              <div className="font-proto text-[54px] font-bold leading-[0.92] tracking-tight text-slate-100">
+                Регистрация
               </div>
-            )}
+              <div className="mt-2 text-sm text-slate-200/80">
+                Создайте аккаунт, чтобы начать работу
+              </div>
+            </div>
 
-            <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Подождите…" : "Создать аккаунт"}
-            </Button>
+            <div className="mt-5 space-y-4">
+              <div>
+                <Label>E-mail</Label>
+                <TextInput
+                  {...form.field("email")}
+                  type="email"
+                  placeholder="user@gmail.com"
+                  maxLength={100}
+                  error={form.field("email").error}
+                />
+                <FieldError>{form.field("email").error}</FieldError>
+              </div>
 
-            <div className="text-sm text-white/50">
-              Уже есть аккаунт?{" "}
-              <a
-                href="/login"
-                className="text-white/80 underline decoration-white/20 underline-offset-4 hover:text-white"
-              >
-                Войти
-              </a>
+              <div>
+                <Label>ФИО</Label>
+                <TextInput
+                  {...form.field("name")}
+                  placeholder="Иванов Иван"
+                  maxLength={80}
+                  error={form.field("name").error}
+                  onChange={(v) => form.field("name").onChange(filterByAllowedCharset(v, /[А-Яа-яЁё\s\-]/))}
+                />
+                <FieldError>{form.field("name").error}</FieldError>
+              </div>
+
+              <div>
+                <Label>Пароль</Label>
+                <TextInput
+                  {...form.field("password")}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Qwerty!234"
+                  maxLength={100}
+                  error={form.field("password").error}
+                  onChange={(v) =>
+                    form
+                      .field("password")
+                      .onChange(filterByAllowedCharset(v, /[A-Za-z0-9!@#$%^&*?_\-]/))
+                  }
+                  right={
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((x) => !x)}
+                      className="h-8 rounded-xl border border-white/10 bg-white/5 px-2.5 text-[11px] font-semibold text-slate-100/80 hover:bg-white/10 focus:outline-none focus:ring-4 focus:ring-sky-200/15"
+                    >
+                      {showPassword ? "Скрыть" : "Показать"}
+                    </button>
+                  }
+                />
+                {passwordHint}
+                <FieldError>{form.field("password").error}</FieldError>
+              </div>
+
+              <div>
+                <Label>Подтверждение пароля</Label>
+                <TextInput
+                  {...form.field("confirmPassword")}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Qwerty!234"
+                  maxLength={100}
+                  error={form.field("confirmPassword").error}
+                  onChange={(v) =>
+                    form
+                      .field("confirmPassword")
+                      .onChange(filterByAllowedCharset(v, /[A-Za-z0-9!@#$%^&*?_\-]/))
+                  }
+                />
+                <FieldError>{form.field("confirmPassword").error}</FieldError>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Должность</Label>
+                  <TextInput
+                    {...form.field("title")}
+                    placeholder="Дизайнер"
+                    maxLength={150}
+                    error={form.field("title").error}
+                    onChange={(v) =>
+                      form.field("title").onChange(filterByAllowedCharset(v, /[A-Za-zА-Яа-яЁё\s\-]/))
+                    }
+                  />
+                  <FieldError>{form.field("title").error}</FieldError>
+                </div>
+                <div>
+                  <Label>Отдел</Label>
+                  <TextInput
+                    {...form.field("department")}
+                    placeholder="Дизайн"
+                    maxLength={200}
+                    error={form.field("department").error}
+                  />
+                  <FieldError>{form.field("department").error}</FieldError>
+                </div>
+              </div>
+
+              <div>
+                <Label>Телефон</Label>
+                <TextInput
+                  {...form.field("phone")}
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="+7 (999) 000-00-00"
+                  maxLength={32}
+                  error={form.field("phone").error}
+                />
+                <FieldError>{form.field("phone").error}</FieldError>
+                <FieldHint>Можно оставить пустым.</FieldHint>
+              </div>
+
+              {apiError && (
+                <div className="rounded-2xl border border-rose-200/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+                  {apiErrorText}
+                </div>
+              )}
+
+              <PaperButton onClick={handleSubmit} disabled={submitting}>
+                {submitting ? "Подождите…" : "Создать аккаунт"}
+              </PaperButton>
+
+              <div className="pt-1 text-center">
+                <div className="text-sm text-slate-200/75">
+                  Уже есть аккаунт?{" "}
+                  <a
+                    href="/login"
+                    className="font-semibold text-slate-50 underline decoration-slate-200/35 underline-offset-4 hover:decoration-slate-200/60"
+                  >
+                    Войти
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );

@@ -7,14 +7,51 @@ import { Card, PageHeader, Row, Button, Input, Field, FieldError } from "../comp
 
 export default function MePage() {
   const { me, token, refreshMe } = useMessenger();
-  const [photoUrl, setPhotoUrl] = useState(me.avatarUrl ?? "");
+  const [photoUrl, setPhotoUrl] = useState(me.avatarUrl ?? ""); // canonical (e.g. /files/...)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState(""); // blob preview while uploading
+  const [photoSrc, setPhotoSrc] = useState(me.avatarUrl ?? ""); // actual <img src> (presigned / blob / http)
   const fileInputRef = useRef(null);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUploadError, setAvatarUploadError] = useState(null);
 
   useEffect(() => {
     setPhotoUrl(me.avatarUrl ?? "");
+    setPhotoPreviewUrl("");
+    setAvatarUploadError(null);
   }, [me.avatarUrl, me.id]);
+
+  useEffect(() => {
+    if (photoPreviewUrl) {
+      setPhotoSrc(photoPreviewUrl);
+      return undefined;
+    }
+    if (!photoUrl) {
+      setPhotoSrc("");
+      return undefined;
+    }
+    if (!photoUrl.startsWith("/files/")) {
+      setPhotoSrc(photoUrl);
+      return undefined;
+    }
+    if (!token) {
+      setPhotoSrc("");
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const out = await api.getFileUrl(token, photoUrl);
+        if (!cancelled) setPhotoSrc(out?.url || "");
+      } catch {
+        if (!cancelled) setPhotoSrc("");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [photoPreviewUrl, photoUrl, token]);
 
   const form = useForm({
     name: {
@@ -35,22 +72,41 @@ export default function MePage() {
     },
   });
 
-  function handleFileChange(e) {
+  async function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setPhotoUrl(URL.createObjectURL(file));
+    setAvatarUploadError(null);
+    const blob = URL.createObjectURL(file);
+    setPhotoPreviewUrl(blob);
+    setUploadingAvatar(true);
+    try {
+      const up = await api.postUpload(token, file);
+      const url = up?.url || "";
+      if (!url) throw new Error("upload_failed");
+      setPhotoUrl(url);
+      // Keep preview until next render tick; then effect will switch to presigned.
+      setTimeout(() => setPhotoPreviewUrl(""), 50);
+    } catch {
+      setAvatarUploadError("Не удалось загрузить фото. Попробуйте ещё раз.");
+      // Keep preview; user can retry by selecting again.
+    } finally {
+      setUploadingAvatar(false);
+      // allow selecting same file again
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   async function handleSave() {
     form.touchAll();
     setSaveError(null);
     if (!form.isValid) return;
+    if (uploadingAvatar) return;
     try {
       const payload = {
         phone: form.values.phone.trim(),
         bio: form.values.bio.trim(),
       };
-      if (photoUrl && !photoUrl.startsWith("blob:")) {
+      if (photoUrl) {
         payload.avatarUrl = photoUrl;
       }
       if (me.userType !== "guest") {
@@ -71,20 +127,22 @@ export default function MePage() {
     <div className="p-6">
       <PageHeader title="Мой профиль" />
       <div className="mt-5 grid max-w-3xl grid-cols-1 gap-5 lg:grid-cols-[220px_1fr]">
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-5">
+        <div className="flex flex-col items-center gap-3 rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] p-5 shadow-paper backdrop-blur">
           <div className="relative">
-            {photoUrl && !photoUrl.startsWith("blob:") ? (
-              <img src={photoUrl} alt={me.name} className="h-28 w-28 rounded-2xl object-cover" />
-            ) : photoUrl.startsWith("blob:") ? (
-              <img src={photoUrl} alt={me.name} className="h-28 w-28 rounded-2xl object-cover" />
+            {photoSrc ? (
+              <img
+                src={photoSrc}
+                alt={me.name}
+                className="h-28 w-28 rounded-[var(--radius-xl)] border border-[color:var(--border)] object-cover shadow-paper"
+              />
             ) : (
-              <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-indigo-500/20 text-3xl font-bold text-indigo-300">
+              <div className="flex h-28 w-28 items-center justify-center rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--surface2)] font-proto text-4xl font-bold text-[color:var(--fg)]/75 shadow-paper">
                 {me.name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase()}
               </div>
             )}
             <span
               className={cx(
-                "absolute -bottom-1 -right-1 h-4 w-4 rounded-full ring-2 ring-slate-950",
+                "absolute -bottom-1 -right-1 h-4 w-4 rounded-full ring-2 ring-[color:var(--bg)]",
                 presenceColor(me.status),
               )}
             />
@@ -92,7 +150,7 @@ export default function MePage() {
 
           <div className="text-center">
             <div className="font-semibold">{form.values.name || me.name}</div>
-            <div className="text-xs text-white/50">{me.title}</div>
+            <div className="text-xs text-[color:var(--muted)]">{me.title}</div>
           </div>
 
           <input
@@ -105,12 +163,21 @@ export default function MePage() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-full rounded-lg bg-white/5 py-2 text-xs text-white/65 hover:bg-white/10"
+            disabled={uploadingAvatar}
+            className={cx(
+              "w-full rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] py-3 text-xs font-semibold text-[color:var(--fg)]/85 shadow-paper hover:bg-[color:var(--surface2)]/90 focus:outline-none focus:ring-4 focus:ring-[color:var(--ring)]",
+              uploadingAvatar ? "cursor-not-allowed opacity-60 hover:bg-[color:var(--surface2)]" : "",
+            )}
           >
-            Загрузить фото
+            {uploadingAvatar ? "Загрузка…" : "Загрузить фото"}
           </button>
+          {avatarUploadError && (
+            <div className="w-full rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--dangerBg)] px-4 py-3 text-[11px] font-semibold text-[color:var(--danger)] shadow-paper backdrop-blur">
+              {avatarUploadError}
+            </div>
+          )}
 
-          <div className="w-full space-y-1 text-xs text-white/35">
+          <div className="w-full space-y-1 text-xs text-[color:var(--muted2)]">
             <div>{userTypeLabel(me.userType)}</div>
             <div>{statusLabel(me.status)}</div>
           </div>
@@ -127,7 +194,7 @@ export default function MePage() {
                 />
               </Field>
               {me.userType === "guest" && (
-                <div className="text-[11px] text-white/35">
+                <div className="text-[11px] text-[color:var(--muted2)]">
                   ФИО для гостевых аккаунтов меняет администратор.
                 </div>
               )}
@@ -141,7 +208,7 @@ export default function MePage() {
               <Field label="E-mail" error={form.field("email").error}>
                 <Input {...form.field("email")} type="email" readOnly className="opacity-70" />
               </Field>
-              <div className="text-[11px] text-white/35">Смена e-mail через администратора.</div>
+              <div className="text-[11px] text-[color:var(--muted2)]">Смена e-mail через администратора.</div>
               <Field label="Телефон" error={form.field("phone").error}>
                 <Input {...form.field("phone")} placeholder="+7 (999) 000-00-00" />
               </Field>
@@ -157,10 +224,10 @@ export default function MePage() {
                 rows={3}
                 placeholder="Расскажите о себе…"
                 className={cx(
-                  "w-full resize-none rounded-lg bg-white/5 p-3 text-sm text-white/80 placeholder:text-white/30 focus:outline-none focus:ring-2",
+                  "w-full resize-none rounded-[var(--radius-xl)] border bg-[color:var(--surface2)] p-4 text-sm text-[color:var(--fg)]/90 shadow-paper outline-none transition placeholder:text-[color:var(--muted2)] focus:ring-4",
                   form.field("bio").error
-                    ? "border border-rose-400/50 focus:ring-rose-400/30"
-                    : "focus:ring-indigo-400/20",
+                    ? "border-rose-300/40 focus:ring-rose-300/20"
+                    : "border-[color:var(--border)] focus:ring-[color:var(--ring)]",
                 )}
               />
               <div className="flex items-center justify-between">
@@ -168,7 +235,7 @@ export default function MePage() {
                 <div
                   className={cx(
                     "ml-auto text-[11px]",
-                    bioLen > 500 ? "text-rose-400" : "text-white/30",
+                    bioLen > 500 ? "text-[color:var(--danger)]" : "text-[color:var(--muted2)]",
                   )}
                 >
                   {bioLen}/500
@@ -178,7 +245,7 @@ export default function MePage() {
           </Card>
 
           {saveError && (
-            <div className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm text-rose-200">
+            <div className="rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--dangerBg)] px-5 py-4 text-sm font-semibold text-[color:var(--danger)] shadow-paper backdrop-blur">
               {saveError}
             </div>
           )}
@@ -190,9 +257,9 @@ export default function MePage() {
             >
               Сохранить изменения
             </Button>
-            {saved && <span className="text-sm text-emerald-400">Сохранено</span>}
+            {saved && <span className="text-sm font-semibold text-emerald-600/90">Сохранено</span>}
           </div>
-          <div className="text-xs text-white/30">* — обязательные поля</div>
+          <div className="text-xs text-[color:var(--muted2)]">* — обязательные поля</div>
         </div>
       </div>
     </div>

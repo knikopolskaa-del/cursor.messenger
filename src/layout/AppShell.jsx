@@ -14,12 +14,12 @@ function ConvIcon({ iconUrl, token, label }) {
         url={iconUrl}
         token={token}
         alt=""
-        className="h-7 w-7 flex-shrink-0 rounded-lg border border-white/10 object-cover"
+        className="h-7 w-7 flex-shrink-0 rounded-xl border border-[color:var(--border)] object-cover"
       />
     );
   }
   return (
-    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/5 text-[11px] font-semibold text-white/45">
+    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)] text-[11px] font-semibold text-[color:var(--muted)]">
       {letter}
     </span>
   );
@@ -29,7 +29,7 @@ function NavGroup({ title, right, children }) {
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between px-2">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-white/40">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted2)]">
           {title}
         </div>
         {right}
@@ -41,10 +41,10 @@ function NavGroup({ title, right, children }) {
 
 function NavItem({ to, label, disabled }) {
   const cls = [
-    "flex items-center rounded-lg px-2 py-2 text-sm transition",
+    "flex items-center rounded-2xl px-2.5 py-2 text-sm transition",
     disabled
-      ? "cursor-not-allowed text-white/25"
-      : "text-white/70 hover:bg-white/5 hover:text-white",
+      ? "cursor-not-allowed text-[color:var(--muted2)]"
+      : "text-[color:var(--muted)] hover:bg-[color:var(--panel)] hover:text-[color:var(--fg)]",
   ].join(" ");
   if (disabled) return <div className={cls}>{label}</div>;
   return (
@@ -58,12 +58,12 @@ function NavConversation({ to, label, hint, left }) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-white/70 hover:bg-white/5 hover:text-white"
+      className="flex items-center gap-2 rounded-2xl px-2.5 py-2 text-sm text-[color:var(--muted)] hover:bg-[color:var(--panel)] hover:text-[color:var(--fg)]"
     >
-      {left ?? <span className="h-7 w-7 rounded-lg bg-white/5" />}
+      {left ?? <span className="h-7 w-7 rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)]" />}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {hint && (
-        <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] text-white/45">
+        <span className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-2 py-1 text-[10px] text-[color:var(--muted2)]">
           {hint}
         </span>
       )}
@@ -87,28 +87,30 @@ export default function AppShell() {
   }, [directs, me.id]);
 
   return (
-    <div className="flex h-dvh w-full flex-col bg-slate-950">
+    <div className="flex h-dvh w-full flex-col bg-[color:var(--bg)]">
       {workspaceError && (
-        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-amber-400/25 bg-amber-400/10 px-4 py-2 text-xs text-amber-100">
+        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-[color:var(--border)] bg-[color:var(--panel)] px-4 py-2 text-xs text-[color:var(--fg)] shadow-paper backdrop-blur">
           <span className="min-w-0">{workspaceError}</span>
           <button
             type="button"
             onClick={() => retryWorkspace()}
-            className="flex-shrink-0 rounded-md bg-white/10 px-2 py-1 text-[11px] text-white hover:bg-white/15"
+            className="flex-shrink-0 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-1.5 text-[11px] font-semibold text-[color:var(--fg)] hover:bg-[color:var(--surface2)]/90 focus:outline-none focus:ring-4 focus:ring-[color:var(--ring)]"
           >
             Повторить
           </button>
         </div>
       )}
       <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr]">
-        <aside className="flex h-full flex-col border-r border-white/10 bg-slate-950">
+        <aside className="flex h-full flex-col border-r border-[color:var(--border)] bg-[color:var(--panel)] shadow-paper backdrop-blur">
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">Мессенджер компании</div>
-              <div className="flex items-center gap-1.5 truncate text-xs text-white/50">
+              <div className="truncate font-proto text-3xl font-bold leading-[0.95] tracking-tight text-[color:var(--fg)]">
+                Мессенджер компании
+              </div>
+              <div className="flex items-center gap-1.5 truncate text-xs text-[color:var(--muted)]">
                 <Avatar user={me} size="sm" />
                 <span>{me.name}</span>
-                <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] text-white/55">
+                <span className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-2 py-1 text-[10px] font-semibold text-[color:var(--muted2)]">
                   {userTypeLabel(me.userType)}
                 </span>
               </div>
@@ -116,7 +118,7 @@ export default function AppShell() {
             <button
               type="button"
               onClick={() => logout()}
-              className="flex-shrink-0 rounded-lg bg-white/5 px-2 py-1 text-xs text-white/60 hover:bg-white/10"
+              className="flex-shrink-0 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-xs font-semibold text-[color:var(--fg)] hover:bg-[color:var(--surface2)]/90 focus:outline-none focus:ring-4 focus:ring-[color:var(--ring)]"
             >
               Выйти
             </button>
@@ -214,12 +216,12 @@ export default function AppShell() {
             </NavGroup>
           </nav>
 
-          <div className="border-t border-white/10 p-3">
+          <div className="border-t border-[color:var(--border)] p-3">
             <div className="flex items-center justify-between gap-2">
-              <Link to="/app/me" className="text-xs text-white/60 hover:text-white">
+              <Link to="/app/me" className="text-xs font-semibold text-[color:var(--muted)] hover:text-[color:var(--fg)]">
                 Мой профиль
               </Link>
-              <Link to="/app/settings" className="text-xs text-white/60 hover:text-white">
+              <Link to="/app/settings" className="text-xs font-semibold text-[color:var(--muted)] hover:text-[color:var(--fg)]">
                 Настройки
               </Link>
             </div>

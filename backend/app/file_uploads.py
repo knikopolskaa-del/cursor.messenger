@@ -37,3 +37,5 @@ def bind_uploads_to_message(session: Session, message_id: str, attachments: list
         row = session.get(FileUpload, fid)
         if row is not None:
             row.message_id = message_id
+    # Persist the binding immediately so later validation errors don't lose linkage.
+    session.flush()

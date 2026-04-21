@@ -19,8 +19,8 @@ export function AppIndexRedirect() {
   if (!first) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <div className="text-sm font-medium text-white/70">Нет каналов</div>
-        <div className="text-xs text-white/45">Создайте канал через «+ Создать» в сайдбаре.</div>
+        <div className="text-sm font-medium text-[color:var(--fg)]">Нет каналов</div>
+        <div className="text-xs text-[color:var(--muted)]">Создайте канал через «+ Создать» в сайдбаре.</div>
         <Button to="/app/new/channel">Создать канал</Button>
       </div>
     );
@@ -162,7 +162,7 @@ export default function ChatPage({ kind }) {
 
   if (kind === "dm" && !apiConversation) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-white/50">
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-[color:var(--muted)]">
         <div>Диалог с этим пользователем ещё не создан.</div>
         <Button to="/app/new/dm">Написать</Button>
       </div>
@@ -171,11 +171,13 @@ export default function ChatPage({ kind }) {
 
   return (
     <div className="grid h-full grid-cols-[1fr_300px]">
-      <div className="flex min-h-0 flex-col border-r border-white/10">
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-3">
+      <div className="flex min-h-0 flex-col border-r border-[color:var(--border)] bg-[color:var(--panel)] shadow-paper backdrop-blur">
+        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-5 py-4">
           <div className="min-w-0">
-            <div className="truncate text-base font-semibold">{title}</div>
-            <div className="text-xs text-white/45">{kindLabel}</div>
+            <div className="truncate font-proto text-3xl font-bold leading-[0.95] tracking-tight text-[color:var(--fg)]">
+              {title}
+            </div>
+            <div className="text-xs text-[color:var(--muted)]">{kindLabel}</div>
           </div>
           <div className="flex gap-2">
             <Button to="?panel=info" variant="ghost" size="sm">
@@ -187,21 +189,21 @@ export default function ChatPage({ kind }) {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto bg-[color:var(--bg)]">
           {loading ? (
-            <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 text-sm text-white/50">
+            <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 text-sm text-[color:var(--muted)]">
               <div>Загрузка...</div>
               <ChatSkeleton />
             </div>
           ) : loadError ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-rose-300">
+            <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-[color:var(--danger)]">
               {loadError}
             </div>
           ) : messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
               <div className="text-4xl" aria-hidden>{"\u{1F4AC}"}</div>
-              <div className="text-sm font-semibold text-white/70">Сообщений пока нет</div>
-              <div className="text-xs text-white/40">Напишите первое сообщение ниже.</div>
+              <div className="text-sm font-semibold text-[color:var(--fg)]">Сообщений пока нет</div>
+              <div className="text-xs text-[color:var(--muted)]">Напишите первое сообщение ниже.</div>
             </div>
           ) : (
             <div className="space-y-2 px-5 py-4">
@@ -219,7 +221,7 @@ export default function ChatPage({ kind }) {
         </div>
 
         {sendError && (
-          <div className="border-t border-rose-400/20 bg-rose-400/10 px-5 py-2 text-xs text-rose-200">
+          <div className="border-t border-[color:var(--border)] bg-[color:var(--dangerBg)] px-5 py-2 text-xs text-[color:var(--danger)]">
             {sendError}
           </div>
         )}
@@ -234,7 +236,7 @@ export default function ChatPage({ kind }) {
       />
 
       {threadMessageId && apiConversation && (
-        <div className="fixed inset-y-0 right-0 z-40 w-[400px] border-l border-white/10 bg-slate-950">
+        <div className="fixed inset-y-0 right-0 z-40 w-[400px] border-l border-[color:var(--border)] bg-[color:var(--panel)] shadow-paper backdrop-blur">
           <ThreadPanel
             conversationMessages={messages}
             rootMessageId={threadMessageId}

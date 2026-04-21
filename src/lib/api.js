@@ -1,13 +1,15 @@
 /**
  * HTTP-клиент для FastAPI-бэкенда мессенджера.
- * URL: VITE_API_URL или http://127.0.0.1:8000
+ * URL: VITE_API_URL или http://127.0.0.1:8001
  */
-export const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(
+export const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8001").replace(
   /\/$/,
   "",
 );
 
 export const TOKEN_KEY = "messenger_access_token";
+
+const DEFAULT_TIMEOUT_MS = 15000;
 
 /** Сообщение для UI из тела ответа (FastAPI detail и т.п.). */
 export function messageFromResponseBody(data, statusText = "") {
@@ -51,18 +53,23 @@ async function request(method, path, { body, token, skipAuth } = {}) {
   if (t && !skipAuth) {
     headers["Authorization"] = `Bearer ${t}`;
   }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   let res;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       method,
       headers,
       body: hasJsonBody ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
   } catch (e) {
+    clearTimeout(timeoutId);
     const err = new Error(formatApiError(e));
     err.cause = e;
     throw err;
   }
+  clearTimeout(timeoutId);
   const text = await res.text();
   let data = null;
   if (text) {
@@ -211,4 +218,26 @@ export function search(token, q, scope = "messages") {
   return request("GET", `/search?q=${encodeURIComponent(q)}&scope=${encodeURIComponent(scope)}`, {
     token,
   });
+}
+
+function fileIdFromUrl(url) {
+  if (typeof url !== "string") return "";
+  if (!url.startsWith("/files/")) return "";
+  const rest = url.slice("/files/".length);
+  const id = rest.split("?", 1)[0].replace(/^\/+/, "").replace(/\/+$/, "");
+  return id || "";
+}
+
+/** Получить presigned URL (JSON) для `/files/{id}`. */
+export function getFileUrl(token, fileUrlOrId) {
+  const id =
+    typeof fileUrlOrId === "string" && fileUrlOrId.startsWith("/files/")
+      ? fileIdFromUrl(fileUrlOrId)
+      : String(fileUrlOrId || "").trim();
+  if (!id) {
+    const err = new Error("Invalid file id");
+    err.status = 400;
+    throw err;
+  }
+  return request("GET", `/files/${encodeURIComponent(id)}/url`, { token });
 }

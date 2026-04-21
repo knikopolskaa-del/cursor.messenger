@@ -8,10 +8,12 @@ import { Card, Button, PageHeader, Avatar } from "../components/ui.jsx";
 
 function EmptyState({ icon, title, text }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-8 text-center">
+    <div className="rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] p-8 text-center shadow-paper backdrop-blur">
       <div className="text-3xl">{icon}</div>
-      <div className="mt-2 text-sm font-semibold text-white/75">{title}</div>
-      <div className="mt-1 text-xs text-white/45">{text}</div>
+      <div className="mt-2 font-proto text-2xl font-bold leading-[0.95] tracking-tight text-[color:var(--fg)]">
+        {title}
+      </div>
+      <div className="mt-1 text-xs text-[color:var(--muted)]">{text}</div>
     </div>
   );
 }
@@ -69,9 +71,9 @@ export function MentionsPage() {
       <PageHeader title="Упоминания и реакции" />
       <div className="mt-4 space-y-3">
         {loading ? (
-          <div className="text-sm text-white/45">Загрузка...</div>
+          <div className="text-sm text-[color:var(--muted)]">Загрузка...</div>
         ) : loadError ? (
-          <div className="rounded-lg border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+          <div className="rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--dangerBg)] px-5 py-4 text-sm font-semibold text-[color:var(--danger)] shadow-paper backdrop-blur">
             {loadError}
           </div>
         ) : items.length === 0 ? (
@@ -104,7 +106,7 @@ export function MentionsPage() {
                   </Button>
                 }
               >
-                <div className="text-sm text-white/70">{body}</div>
+                <div className="text-sm text-[color:var(--muted)]">{body}</div>
               </Card>
             );
           })
@@ -149,9 +151,9 @@ export function SavedPage() {
       <PageHeader title="Сохранённое" />
       <div className="mt-4 grid gap-3">
         {loading ? (
-          <div className="text-sm text-white/45">Загрузка...</div>
+          <div className="text-sm text-[color:var(--muted)]">Загрузка...</div>
         ) : loadError ? (
-          <div className="rounded-lg border border-rose-400/25 bg-rose-400/10 px-4 py-3 text-sm text-rose-100">
+          <div className="rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--dangerBg)] px-5 py-4 text-sm font-semibold text-[color:var(--danger)] shadow-paper backdrop-blur">
             {loadError}
           </div>
         ) : items.length === 0 ? (
@@ -182,27 +184,27 @@ export function SavedPage() {
                 key={s.id}
                 type="button"
                 onClick={() => navigate(goTarget)}
-                className="flex w-full items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+                className="flex w-full items-start gap-3 rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] p-5 text-left shadow-paper backdrop-blur transition hover:bg-[color:var(--panel)]/80"
               >
                 {author ? (
                   <Avatar user={author} size="sm" />
                 ) : (
-                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-white/5 text-sm text-white/40" aria-hidden>
+                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] text-sm text-[color:var(--muted)]" aria-hidden>
                     {"\u{1F4CE}"}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     {author ? (
-                      <span className="text-sm font-semibold text-white/90">{author.name}</span>
+                      <span className="text-sm font-semibold text-[color:var(--fg)]">{author.name}</span>
                     ) : (
-                      <span className="text-sm font-semibold text-white/90">Файл</span>
+                      <span className="text-sm font-semibold text-[color:var(--fg)]">Файл</span>
                     )}
-                    <span className="text-[11px] text-white/35">{formatTime(s.savedAt)}</span>
+                    <span className="text-[11px] text-[color:var(--muted2)]">{formatTime(s.savedAt)}</span>
                   </div>
                   <div
                     className={`mt-1 line-clamp-2 text-sm ${
-                      s.previewUnavailable ? "text-white/40" : "text-white/70"
+                      s.previewUnavailable ? "text-[color:var(--muted2)]" : "text-[color:var(--muted)]"
                     }`}
                   >
                     {preview}
