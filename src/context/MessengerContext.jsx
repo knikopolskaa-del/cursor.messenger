@@ -146,6 +146,13 @@ export function MessengerProvider({ children }) {
     setMe(user);
   }, []);
 
+  /** После регистрации API уже вернул accessToken — синхронизируем состояние, как после login(). */
+  const resumeSessionWithToken = useCallback((accessToken) => {
+    localStorage.setItem(api.TOKEN_KEY, accessToken);
+    setBooting(true);
+    setToken(accessToken);
+  }, []);
+
   const value = useMemo(
     () => ({
       token,
@@ -163,6 +170,7 @@ export function MessengerProvider({ children }) {
       logout,
       refreshWorkspace,
       refreshMe,
+      resumeSessionWithToken,
       setMe,
     }),
     [
@@ -181,6 +189,7 @@ export function MessengerProvider({ children }) {
       logout,
       refreshWorkspace,
       refreshMe,
+      resumeSessionWithToken,
     ],
   );
 

@@ -88,7 +88,7 @@ function filterByAllowedCharset(v, re) {
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const { token, me, booting, refreshMe } = useMessenger();
+  const { token, me, booting, resumeSessionWithToken } = useMessenger();
   const [apiError, setApiError] = useState(false);
   const [apiErrorText, setApiErrorText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -190,7 +190,6 @@ export default function RegisterPage() {
       const password = form.values.password;
       const passwordConfirm = form.values.confirmPassword;
       const { accessToken } = await api.register(email, password, fio, passwordConfirm);
-      localStorage.setItem(api.TOKEN_KEY, accessToken);
 
       const patch = {};
       const title = form.values.title.trim();
@@ -203,7 +202,7 @@ export default function RegisterPage() {
         await api.patchMe(accessToken, patch);
       }
 
-      await refreshMe();
+      resumeSessionWithToken(accessToken);
       navigate("/app", { replace: true });
     } catch (e) {
       setApiError(true);

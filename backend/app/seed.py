@@ -112,6 +112,27 @@ def seed_if_empty(session: Session) -> None:
             )
         )
 
+    # E2E: логин из сценариев Playwright (см. e2e/).
+    test_pw = hash_password("1234")
+    session.add(
+        User(
+            id="u_test",
+            workspace_id="w_1",
+            email="test@example.com",
+            password_hash=test_pw,
+            name="Тест Пользователь",
+            title="QA",
+            department="Тестирование",
+            phone="",
+            status="offline",
+            user_type="employee",
+            avatar_url="",
+            bio="",
+            is_active=True,
+            created_at=_ts("2026-01-15T10:05:00Z"),
+        )
+    )
+
     session.flush()
 
     session.add_all(
@@ -162,7 +183,7 @@ def seed_if_empty(session: Session) -> None:
         )
 
     mb = 0
-    for uid in ("u_me", "u_ivan", "u_anna"):
+    for uid in ("u_me", "u_ivan", "u_anna", "u_test"):
         for cid in ("c_general", "c_design", "c_random"):
             mb += 1
             add_mb(uid, "channel", cid, f"mb_{mb}")

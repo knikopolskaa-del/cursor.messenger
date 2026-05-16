@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "stack": "node scripts/stack.mjs",
     "build": "vite build",
     "preview": "vite preview",
-    "api": "node scripts/run-api.mjs"
+    "api": "node scripts/run-api.mjs",
+    "test:e2e": "playwright test",
+    "e2e:ensure-user": "node scripts/ensure-e2e-user.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -15,8 +18,9 @@
     "react-router-dom": "^6.26.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.54.2",
     "@vitejs/plugin-react": "^4.3.1",
-    "playwright": "^1.54.2",
-    "vite": "^5.4.8"
+    "vite": "^5.4.8",
+    "wait-on": "^8.0.5"
   }
 }

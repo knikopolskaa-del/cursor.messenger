@@ -283,7 +283,7 @@ export function Message({
           </div>
         )}
 
-        <div className="mt-1.5 hidden gap-2 group-hover:flex">
+        <div className="mt-1.5 flex flex-wrap gap-2">
           <Button to={`?thread=${message.id}`} variant="ghost" size="sm">
             Тред
           </Button>

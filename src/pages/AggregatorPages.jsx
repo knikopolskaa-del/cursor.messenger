@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMessenger } from "../context/MessengerContext.jsx";
 import * as api from "../lib/api.js";
@@ -123,6 +123,18 @@ export function SavedPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
+  const reloadSaved = useCallback(async () => {
+    if (!token) return;
+    setLoadError(null);
+    try {
+      const list = await api.getSaved(token);
+      setItems(list ?? []);
+    } catch (e) {
+      setItems([]);
+      setLoadError(api.formatApiError(e));
+    }
+  }, [token]);
+
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
@@ -180,37 +192,59 @@ export function SavedPage() {
               (s.type === "message" ? "Сообщение" : "");
 
             return (
-              <button
+              <div
                 key={s.id}
-                type="button"
-                onClick={() => navigate(goTarget)}
-                className="flex w-full items-start gap-3 rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] p-5 text-left shadow-paper backdrop-blur transition hover:bg-[color:var(--panel)]/80"
+                data-saved-id={s.id}
+                className="flex w-full items-start gap-2 rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] p-3 pl-5 shadow-paper backdrop-blur"
               >
-                {author ? (
-                  <Avatar user={author} size="sm" />
-                ) : (
-                  <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] text-sm text-[color:var(--muted)]" aria-hidden>
-                    {"\u{1F4CE}"}
+                <button
+                  type="button"
+                  onClick={() => navigate(goTarget)}
+                  className="flex min-w-0 flex-1 items-start gap-3 rounded-2xl py-2 text-left transition hover:bg-[color:var(--panel)]/80"
+                >
+                  {author ? (
+                    <Avatar user={author} size="sm" />
+                  ) : (
+                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] text-sm text-[color:var(--muted)]" aria-hidden>
+                      {"\u{1F4CE}"}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      {author ? (
+                        <span className="text-sm font-semibold text-[color:var(--fg)]">{author.name}</span>
+                      ) : (
+                        <span className="text-sm font-semibold text-[color:var(--fg)]">Файл</span>
+                      )}
+                      <span className="text-[11px] text-[color:var(--muted2)]">{formatTime(s.savedAt)}</span>
+                    </div>
+                    <div
+                      className={`mt-1 line-clamp-2 text-sm ${
+                        s.previewUnavailable ? "text-[color:var(--muted2)]" : "text-[color:var(--muted)]"
+                      }`}
+                    >
+                      {preview}
+                    </div>
                   </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    {author ? (
-                      <span className="text-sm font-semibold text-[color:var(--fg)]">{author.name}</span>
-                    ) : (
-                      <span className="text-sm font-semibold text-[color:var(--fg)]">Файл</span>
-                    )}
-                    <span className="text-[11px] text-[color:var(--muted2)]">{formatTime(s.savedAt)}</span>
-                  </div>
-                  <div
-                    className={`mt-1 line-clamp-2 text-sm ${
-                      s.previewUnavailable ? "text-[color:var(--muted2)]" : "text-[color:var(--muted)]"
-                    }`}
-                  >
-                    {preview}
-                  </div>
-                </div>
-              </button>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Удалить из сохранённого"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!token) return;
+                    try {
+                      await api.deleteSaved(token, s.id);
+                      await reloadSaved();
+                    } catch (err) {
+                      setLoadError(api.formatApiError(err));
+                    }
+                  }}
+                  className="flex-shrink-0 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-xs font-semibold text-[color:var(--fg)]/85 hover:bg-[color:var(--surface2)]/90"
+                >
+                  Удалить
+                </button>
+              </div>
             );
           })
         )}

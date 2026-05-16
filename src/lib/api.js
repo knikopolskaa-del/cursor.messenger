@@ -1,11 +1,26 @@
 /**
  * HTTP-клиент для FastAPI-бэкенда мессенджера.
- * URL: VITE_API_URL или http://127.0.0.1:8001
+ *
+ * В dev без VITE_API_DIRECT: пустая база → fetch на тот же origin (:5173), Vite проксирует на API
+ * (vite.config.js, по умолчанию 127.0.0.1:8001). Так не ломается связь из браузера с бэкендом.
+ *
+ * Чтобы ходить в API напрямую с dev-сервера: VITE_API_DIRECT=1 в .env и VITE_API_URL=...
  */
-export const API_BASE = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8001").replace(
-  /\/$/,
-  "",
-);
+const configuredApi = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
+const apiDirectDev =
+  import.meta.env.DEV &&
+  ["1", "true", "yes"].includes(String(import.meta.env.VITE_API_DIRECT || "").toLowerCase());
+
+export const API_BASE =
+  import.meta.env.DEV && !apiDirectDev ? "" : configuredApi || "http://127.0.0.1:8001";
+
+/** Сборка URL без двойных слэшей при пустой API_BASE */
+export function apiUrl(path) {
+  const p = typeof path === "string" ? path.trim() : "";
+  const slug = !p.startsWith("/") ? `/${p}` : p;
+  const base = API_BASE.replace(/\/$/, "");
+  return base ? `${base}${slug}` : slug;
+}
 
 export const TOKEN_KEY = "messenger_access_token";
 
@@ -37,7 +52,10 @@ export function formatApiError(err) {
     return "Пользователь с таким email уже зарегистрирован";
   }
   if (err.name === "TypeError" || err.message === "Failed to fetch") {
-    return `Нет связи с API (${API_BASE}). Запущен ли бэкенд?`;
+    const where = API_BASE.trim()
+      ? ` (${API_BASE})`
+      : " (прокси Vite → 127.0.0.1:8001, см. vite.config.js и npm run api)";
+    return `Нет связи с API${where}. Запущен ли бэкенд?`;
   }
   if (err.message) return err.message;
   return messageFromResponseBody(err.data, "");
@@ -57,7 +75,7 @@ async function request(method, path, { body, token, skipAuth } = {}) {
   const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(`${API_BASE}${path}`, {
+    res = await fetch(apiUrl(path), {
       method,
       headers,
       body: hasJsonBody ? JSON.stringify(body) : undefined,
@@ -176,6 +194,10 @@ export function postSaved(token, body) {
   return request("POST", "/saved", { token, body });
 }
 
+export function deleteSaved(token, savedId) {
+  return request("DELETE", `/saved/${encodeURIComponent(savedId)}`, { token });
+}
+
 export function patchChannel(token, channelId, body) {
   return request("PATCH", `/channels/${encodeURIComponent(channelId)}`, { token, body });
 }
@@ -192,7 +214,7 @@ export async function postUpload(token, file) {
   if (token) headers.Authorization = `Bearer ${token}`;
   let res;
   try {
-    res = await fetch(`${API_BASE}/uploads`, { method: "POST", headers, body: fd });
+    res = await fetch(apiUrl("/uploads"), { method: "POST", headers, body: fd });
   } catch (e) {
     throw new Error(formatApiError(e));
   }

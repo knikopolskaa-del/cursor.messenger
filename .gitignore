@@ -8,3 +8,6 @@ __pycache__/
 venv/
 backend/messenger.db
 backend/uploads/
+test-results/
+playwright-report/
+.playwright/

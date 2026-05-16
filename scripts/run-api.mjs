@@ -19,6 +19,17 @@ if (!existsSync(mainPy)) {
   process.exit(1);
 }
 
+// Должен совпадать с портом в vite.config.js proxy и скриптом stack (по умолчанию 8001).
+const PORT = String(process.env.MESSENGER_API_PORT || process.env.PORT || "8001");
+
+console.error(
+  "\n═══════════════════════════════════════════════════════\n" +
+    `  Messenger API  →  http://127.0.0.1:${PORT}\n\n` +
+    "  Если Vite пишет «proxy … ETIMEDOUT» — этот процесс не запущен\n" +
+    "  или порт занят. Либо в одном терминале выполните:  npm run stack\n" +
+    "═══════════════════════════════════════════════════════\n",
+);
+
 const args = [
   "-m",
   "uvicorn",
@@ -27,7 +38,7 @@ const args = [
   "--host",
   "127.0.0.1",
   "--port",
-  "8000",
+  PORT,
 ];
 
 const candidates = [
