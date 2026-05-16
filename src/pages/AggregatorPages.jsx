@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useMessenger } from "../context/MessengerContext.jsx";
 import * as api from "../lib/api.js";
 import { formatTime, pickUser, userStub } from "../lib/utils.js";
@@ -118,6 +118,7 @@ export function MentionsPage() {
 
 export function SavedPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { token, me, directs, users } = useMessenger();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -156,7 +157,7 @@ export function SavedPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, location.pathname]);
 
   return (
     <div className="p-6">

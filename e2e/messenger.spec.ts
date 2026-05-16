@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+test.describe.configure({ mode: "serial" });
+
 const TEST_EMAIL = "test@example.com";
 const TEST_PASSWORD = "1234";
 
@@ -10,6 +12,19 @@ async function login(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Войти" }).click();
   await expect(page).toHaveURL(/\/app/);
 }
+
+test("Пустая форма входа показывает ошибки валидации", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Войти" }).click();
+  await expect(page.getByText("Введите e-mail")).toBeVisible();
+  await expect(page.getByText("Введите пароль")).toBeVisible();
+  await expect(page).toHaveURL(/\/login/);
+});
+
+test("Пользователь входит в аккаунт", async ({ page }) => {
+  await login(page);
+  await expect(page.getByText("Мессенджер компании")).toBeVisible();
+});
 
 test("Пользователь регистрируется и попадает на главную страницу", async ({ page }) => {
   const stamp = Date.now();
@@ -60,17 +75,30 @@ test("Пользователь удаляет запись она исчезае
   const body = `E2E для сохранённого ${Date.now()}`;
   await login(page);
 
+  await expect(page).toHaveURL(/\/app\/c\//);
   await page.getByPlaceholder("Написать сообщение…").fill(body);
   await page.getByRole("button", { name: "Отправить" }).click();
-  const row = page.locator(`[data-message-id].group`).filter({ hasText: body });
-  await row.hover();
-  await row.getByRole("button", { name: "Сохранить" }).click();
+
+  const row = page
+    .locator("[data-message-id].group")
+    .filter({ has: page.getByText(body, { exact: true }) })
+    .last();
+  await expect(row).toBeVisible();
+
+  const saveResponse = page.waitForResponse(
+    (res) => res.request().method() === "POST" && /\/saved\/?$/.test(new URL(res.url()).pathname),
+  );
+  await row.getByTestId("save-message").click();
+  const savedResp = await saveResponse;
+  expect(savedResp.status(), "POST /saved должен вернуть 201").toBe(201);
+
+  await expect(row.getByText("Сохранено")).toBeVisible();
 
   await page.getByRole("link", { name: "Сохранённое" }).click();
   await expect(page).toHaveURL(/\/app\/saved/);
-  await expect(page.getByText(body)).toBeVisible();
+  await expect(page.getByText(body, { exact: true })).toBeVisible();
 
   const savedRow = page.locator("[data-saved-id]").filter({ hasText: body });
   await savedRow.getByRole("button", { name: "Удалить" }).click();
-  await expect(page.getByText(body)).not.toBeVisible();
+  await expect(page.getByText(body, { exact: true })).not.toBeVisible();
 });

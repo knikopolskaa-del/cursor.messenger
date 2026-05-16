@@ -76,9 +76,11 @@ def create_saved(
     ):
         raise HTTPException(404, detail="Conversation not found")
     if body.type == "message":
-        if not body.messageId or body.messageId not in store.messages:
+        if not body.messageId:
             raise HTTPException(400, detail="Invalid messageId")
-        m = store.messages[body.messageId]
+        m = store.messages.get(body.messageId)
+        if not m:
+            raise HTTPException(400, detail="Invalid messageId")
         if (
             m.get("conversationType") != body.conversationType
             or m.get("conversationId") != body.conversationId

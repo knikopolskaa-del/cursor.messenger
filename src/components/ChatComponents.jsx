@@ -289,6 +289,7 @@ export function Message({
           </Button>
           <button
             type="button"
+            data-testid="save-message"
             onClick={handleSaveMessage}
             className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-xs font-semibold text-[color:var(--fg)]/85 hover:bg-[color:var(--surface2)]/90"
           >

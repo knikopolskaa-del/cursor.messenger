@@ -448,6 +448,9 @@ class _MessagesMap:
         row = self._s.get(Message, mid)
         return _message_to_dict(row) if row else None
 
+    def __contains__(self, mid: str) -> bool:
+        return self.get(mid) is not None
+
     def __setitem__(self, mid: str, d: dict[str, Any]) -> None:
         row = self._s.get(Message, mid)
         if row:
