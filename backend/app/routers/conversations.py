@@ -117,8 +117,8 @@ def post_message(
     }
     try:
         store.messages[mid] = msg
-    except ValueError as exc:
-        raise HTTPException(400, detail=str(exc)) from exc
+    except ValueError:
+        raise HTTPException(400, detail="Invalid message")
     if atts:
         for a in atts:
             aid = store.next_id("at")

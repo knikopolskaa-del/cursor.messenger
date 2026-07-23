@@ -309,7 +309,7 @@
     };
 
     document.getElementById("btnClearLog").onclick = () => {
-      logEl.innerHTML = "";
+      logEl.replaceChildren();
     };
 
     function log(title, status, body) {
