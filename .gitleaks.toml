@@ -1,0 +1,16 @@
+title = "cursor.messenger gitleaks config"
+
+[extend]
+useDefault = true
+
+# Учебные/тестовые пароли в seed, e2e и api-tester — не реальные секреты.
+[allowlist]
+description = "dev fixtures"
+paths = [
+  '''(?i)backend/app/seed\.py''',
+  '''(?i)backend/scripts/ensure_e2e_user\.py''',
+  '''(?i)e2e/.*''',
+  '''(?i)dev/api-tester\.html''',
+  '''(?i)scripts/pw_check\.mjs''',
+  '''(?i)\.env\.example''',
+]

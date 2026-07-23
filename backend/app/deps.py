@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException
@@ -26,6 +27,13 @@ def current_user_id(
     sess = store.sessions.get(token)
     if not sess:
         raise HTTPException(status_code=401, detail={"error": "invalid_token"})
+    exp = sess.get("expiresAt")
+    if exp is not None:
+        if isinstance(exp, datetime) and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if isinstance(exp, datetime) and datetime.now(timezone.utc) > exp:
+            store.sessions.pop(token, None)
+            raise HTTPException(status_code=401, detail={"error": "invalid_token"})
     uid = sess["userId"]
     u = store.users.get(uid)
     if not u or not u.get("isActive", True):

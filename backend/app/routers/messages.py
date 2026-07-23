@@ -35,8 +35,8 @@ def patch_message(
     msg["editedAt"] = datetime.now(timezone.utc)
     try:
         store.messages[message_id] = msg
-    except ValueError as exc:
-        raise HTTPException(400, detail=str(exc)) from exc
+    except ValueError:
+        raise HTTPException(400, detail="Invalid message")
     return message_out(store, msg)
 
 
@@ -61,6 +61,6 @@ def delete_message(
     msg["deletedAt"] = datetime.now(timezone.utc)
     try:
         store.messages[message_id] = msg
-    except ValueError as exc:
-        raise HTTPException(400, detail=str(exc)) from exc
+    except ValueError:
+        raise HTTPException(400, detail="Invalid message")
     return {"ok": True, "hard": False}

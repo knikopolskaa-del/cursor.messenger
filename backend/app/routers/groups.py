@@ -52,7 +52,7 @@ def create_group(
         mids.append(user["id"])
     for uid in mids:
         if uid not in store.users:
-            raise HTTPException(400, detail=f"Unknown user {uid}")
+            raise HTTPException(400, detail="Invalid userId")
     gid = store.next_id("g")
     g = {
         "id": gid,
@@ -96,7 +96,7 @@ def patch_group(
         mids = data["memberIds"]
         for uid in mids:
             if uid not in store.users:
-                raise HTTPException(400, detail=f"Unknown user {uid}")
+                raise HTTPException(400, detail="Invalid userId")
         if len(mids) < 2:
             raise HTTPException(400, detail="At least 2 members")
         g["memberIds"] = list(dict.fromkeys(mids))

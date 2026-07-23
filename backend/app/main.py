@@ -7,7 +7,8 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
+from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -33,6 +34,10 @@ from .routers import (
     users,
     workspace,
 )
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from .security import is_production, validate_security_config
+from .yos import StorageUnavailable
 from .seed import seed_if_empty
 
 logging.basicConfig(
@@ -70,8 +75,26 @@ def _load_dotenv_if_present() -> None:
 _load_dotenv_if_present()
 
 
+def _cors_origins() -> list[str]:
+    raw = os.environ.get("CORS_ORIGINS", "").strip()
+    if raw:
+        return [part.strip() for part in raw.split(",") if part.strip()]
+    return [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+    ]
+
+
+def _cors_origin_regex() -> str | None:
+    if os.environ.get("CORS_ORIGINS", "").strip():
+        return os.environ.get("CORS_ORIGIN_REGEX") or None
+    return r"^http://(localhost|127\.0\.0\.1):\d+$"
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    validate_security_config()
     init_db()
     (Path(__file__).resolve().parent.parent / "uploads").mkdir(parents=True, exist_ok=True)
     db = SessionLocal()
@@ -83,7 +106,14 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="Messenger API V1", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="Messenger API V1",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url=None if is_production() else "/docs",
+    redoc_url=None,
+    openapi_url=None if is_production() else "/openapi.json",
+)
 
 @app.middleware("http")
 async def _log_requests(request: Request, call_next):
@@ -116,29 +146,46 @@ async def _log_requests(request: Request, call_next):
     response.headers["x-request-id"] = rid
     return response
 
-@app.exception_handler(RequestValidationError)
-async def _validation_error_handler(_request, exc: RequestValidationError):
-    # По чеклисту: плохие данные -> 400 (а не 422).
+@app.exception_handler(StorageUnavailable)
+async def _storage_unavailable_handler(_request: Request, exc: StorageUnavailable):
+    log.exception("object storage unavailable")
     return JSONResponse(
-        status_code=400,
+        status_code=502,
         content={
             "detail": {
-                "error": "validation_error",
-                "message": "Некорректные данные",
-                "fields": exc.errors(),
+                "error": "storage_unavailable",
+                "message": "Object Storage unavailable",
             }
         },
     )
 
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(_request: Request, exc: Exception):
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        raise exc
+    log.exception("unhandled error")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error_handler(_request, exc: RequestValidationError):
+    # По чеклисту: плохие данные -> 400 (а не 422).
+    detail: dict = {
+        "error": "validation_error",
+        "message": "Некорректные данные",
+    }
+    if not is_production():
+        detail["fields"] = jsonable_encoder(exc.errors())
+    return JSONResponse(status_code=400, content={"detail": detail})
+
 app.add_middleware(
     CORSMiddleware,
-    # Dev: Vite может выбрать другой порт (5174, 5175, ...).
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-    ],
-    allow_origin_regex=r"^http://(localhost|127\.0\.0\.1):\d+$",
+    allow_origins=_cors_origins(),
+    allow_origin_regex=_cors_origin_regex(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -166,6 +213,8 @@ for r in (
 
 @app.get("/", include_in_schema=False)
 def root():
+    if is_production():
+        return RedirectResponse(url="/health")
     return RedirectResponse(url="/docs")
 
 

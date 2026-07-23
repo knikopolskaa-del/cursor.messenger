@@ -16,6 +16,8 @@ from ..database import get_session
 from ..deps import current_user
 from ..models import FileUpload
 from ..store import Store
+from ..http_errors import client_error
+from ..upload_policy import allow_inline_preview, normalize_upload_mime, validate_upload_mime
 from ..yos import StorageUnavailable, make_object_key, presign_get_url, upload_bytes
 
 router = APIRouter(tags=["files"])
@@ -56,24 +58,20 @@ async def upload_file(
     try:
         raw = await file.read()
     except Exception as exc:
-        log.exception("Failed to read upload body")
-        raise HTTPException(status_code=400, detail="Invalid upload") from exc
+        raise client_error(400, "Invalid upload", log_message="Failed to read upload body", exc=exc)
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File too large")
     fid = f"fu_{secrets.token_hex(10)}"
     orig = file.filename or "upload"
-    mime = file.content_type or "application/octet-stream"
+    mime = normalize_upload_mime(file.content_type)
+    validate_upload_mime(mime)
     # Upload to YOS; do not block message sending, but this endpoint must fail if upload failed.
     object_key = make_object_key("uploads", orig)
     try:
         upload_bytes(object_key=object_key, data=raw, content_type=mime, filename=orig[:260])
-    except StorageUnavailable as exc:
-        # Service didn't respond / misconfigured: log, return a clear error.
+    except StorageUnavailable:
         log.exception("Upload to Object Storage failed")
-        raise HTTPException(
-            status_code=502,
-            detail={"error": "storage_unavailable", "message": "Object Storage unavailable"},
-        ) from exc
+        raise
     row = FileUpload(
         id=fid,
         user_id=user["id"],
@@ -151,19 +149,16 @@ def download_file(
             allowed = True
     if not allowed:
         raise HTTPException(status_code=403, detail="Forbidden")
-    inline = (row.mime_type or "").lower().startswith("image/")
+    inline = allow_inline_preview(row.mime_type or "")
     try:
         url = presign_get_url(
             object_key=row.disk_name,
             inline=inline,
             filename=row.original_name or "download",
         )
-    except StorageUnavailable as exc:
+    except StorageUnavailable:
         log.exception("Failed to presign file download")
-        raise HTTPException(
-            status_code=502,
-            detail={"error": "storage_unavailable", "message": "Object Storage unavailable"},
-        ) from exc
+        raise
     # Redirect lets the client download directly from storage (private bucket via signed URL).
     return RedirectResponse(url=url, status_code=302)
 
@@ -223,17 +218,14 @@ def get_file_url(
             allowed = True
     if not allowed:
         raise HTTPException(status_code=403, detail="Forbidden")
-    inline = (row.mime_type or "").lower().startswith("image/")
+    inline = allow_inline_preview(row.mime_type or "")
     try:
         url = presign_get_url(
             object_key=row.disk_name,
             inline=inline,
             filename=row.original_name or "download",
         )
-    except StorageUnavailable as exc:
+    except StorageUnavailable:
         log.exception("Failed to presign file download")
-        raise HTTPException(
-            status_code=502,
-            detail={"error": "storage_unavailable", "message": "Object Storage unavailable"},
-        ) from exc
+        raise
     return {"url": url}

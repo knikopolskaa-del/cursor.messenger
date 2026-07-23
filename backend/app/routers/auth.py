@@ -3,12 +3,20 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from ..deps import bearer_token, current_user_id
+from ..rate_limit import enforce_auth_rate_limit
 from ..schemas import LoginBody, LoginResponse, RegisterBody, RegisterInviteBody
-from ..security import hash_password, new_token, verify_password
+from ..security import (
+    hash_password,
+    new_token,
+    password_needs_rehash,
+    public_registration_enabled,
+    session_expires_at,
+    verify_password,
+)
 from ..serialize import user_public
 from ..deps import get_store
 from ..store import Store
@@ -20,8 +28,19 @@ def _default_user_type(email: str) -> str:
     return "employee" if e.endswith("@sharebot.net") else "guest"
 
 
+def _issue_session(store: Store, uid: str) -> str:
+    token = new_token()
+    store.sessions[token] = {
+        "token": token,
+        "userId": uid,
+        "expiresAt": session_expires_at(),
+    }
+    return token
+
+
 @router.post("/login", response_model=LoginResponse)
-def login(body: LoginBody, store: Store = Depends(get_store)):
+def login(body: LoginBody, request: Request, store: Store = Depends(get_store)):
+    enforce_auth_rate_limit(request, scope="login")
     email = body.email.lower().strip()
     uid = store.user_by_email.get(email)
     if not uid:
@@ -31,12 +50,10 @@ def login(body: LoginBody, store: Store = Depends(get_store)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not verify_password(body.password, u["passwordHash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    token = new_token()
-    store.sessions[token] = {
-        "token": token,
-        "userId": uid,
-        "expiresAt": None,
-    }
+    if password_needs_rehash(u["passwordHash"]):
+        u["passwordHash"] = hash_password(body.password)
+        store.users[uid] = u
+    token = _issue_session(store, uid)
     return LoginResponse(accessToken=token, user=user_public(u))
 
 
@@ -54,7 +71,16 @@ def logout(
 
 
 @router.post("/register", response_model=LoginResponse, status_code=201)
-def register(body: RegisterBody, store: Store = Depends(get_store)):
+def register(body: RegisterBody, request: Request, store: Store = Depends(get_store)):
+    enforce_auth_rate_limit(request, scope="register")
+    if not public_registration_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "registration_disabled",
+                "message": "Public registration is disabled",
+            },
+        )
     email = body.email.lower().strip()
     if store.user_by_email.get(email):
         raise HTTPException(
@@ -78,16 +104,17 @@ def register(body: RegisterBody, store: Store = Depends(get_store)):
         "createdAt": datetime.now(timezone.utc),
     }
     store.users[uid] = u
-    token = new_token()
-    store.sessions[token] = {"token": token, "userId": uid, "expiresAt": None}
+    token = _issue_session(store, uid)
     return LoginResponse(accessToken=token, user=user_public(u))
 
 
 @router.post("/invite/complete", response_model=LoginResponse)
 def complete_invite(
     body: RegisterInviteBody,
+    request: Request,
     store: Store = Depends(get_store),
 ):
+    enforce_auth_rate_limit(request, scope="invite")
     inv = store.invites.get(body.token)
     if not inv or inv.get("usedAt"):
         raise HTTPException(
@@ -137,7 +164,6 @@ def complete_invite(
     store.users[uid] = u
     store.user_by_email[email] = uid
     inv["usedAt"] = datetime.now(timezone.utc)
-    token = new_token()
-    store.sessions[token] = {"token": token, "userId": uid, "expiresAt": None}
     store.invites[body.token] = inv
+    token = _issue_session(store, uid)
     return LoginResponse(accessToken=token, user=user_public(u))
