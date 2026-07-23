@@ -7,6 +7,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from fastapi.encoders import jsonable_encoder
 from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -178,7 +179,7 @@ async def _validation_error_handler(_request, exc: RequestValidationError):
         "message": "Некорректные данные",
     }
     if not is_production():
-        detail["fields"] = exc.errors()
+        detail["fields"] = jsonable_encoder(exc.errors())
     return JSONResponse(status_code=400, content={"detail": detail})
 
 app.add_middleware(

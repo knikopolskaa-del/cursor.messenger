@@ -58,8 +58,13 @@ def _peppered(password: str) -> bytes:
     return f"{_auth_pepper()}:{password}".encode()
 
 
+def _peppered_digest(password: str) -> bytes:
+    """SHA-256 of pepper+password — fits bcrypt's 72-byte input limit."""
+    return hashlib.sha256(_peppered(password)).digest()
+
+
 def hash_password(password: str) -> str:
-    digest = bcrypt.hashpw(_peppered(password), bcrypt.gensalt(rounds=12))
+    digest = bcrypt.hashpw(_peppered_digest(password), bcrypt.gensalt(rounds=12))
     return digest.decode("ascii")
 
 
@@ -76,7 +81,7 @@ def _verify_legacy_sha256(password: str, password_hash: str) -> bool:
 def verify_password(password: str, password_hash: str) -> bool:
     if password_hash.startswith("$2"):
         try:
-            return bcrypt.checkpw(_peppered(password), password_hash.encode("ascii"))
+            return bcrypt.checkpw(_peppered_digest(password), password_hash.encode("ascii"))
         except ValueError:
             return False
     if len(password_hash) == 64 and all(c in "0123456789abcdef" for c in password_hash.lower()):
