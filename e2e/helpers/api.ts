@@ -18,16 +18,83 @@ export async function loginApi(
   email: string,
   password: string,
 ): Promise<string> {
-  const res = await request.post(apiUrl("/auth/login"), {
-    data: { email, password },
-  });
-  expect(res.ok(), `login ${email} → ${res.status()}`).toBeTruthy();
-  const body = await res.json();
-  expect(body.accessToken).toBeTruthy();
-  return body.accessToken as string;
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await request.post(apiUrl("/auth/login"), {
+      data: { email, password },
+    });
+    lastStatus = res.status();
+    if (res.status() === 429 && attempt < 4) {
+      await new Promise((r) => setTimeout(r, 3000));
+      continue;
+    }
+    expect(res.ok(), `login ${email} → ${res.status()}`).toBeTruthy();
+    const body = await res.json();
+    expect(body.accessToken).toBeTruthy();
+    return body.accessToken as string;
+  }
+  expect(false, `login ${email} → ${lastStatus}`).toBeTruthy();
+  throw new Error("unreachable");
 }
 
 /** Pydantic/FastAPI validation errors from our 400 handler. */
+export async function postMessage(
+  request: APIRequestContext,
+  token: string,
+  conversationType: "channel" | "group" | "direct",
+  conversationId: string,
+  body: Record<string, unknown>,
+) {
+  const res = await request.post(
+    apiUrl(
+      `/conversations/${encodeURIComponent(conversationType)}/${encodeURIComponent(conversationId)}/messages`,
+    ),
+    { headers: authHeaders(token), data: body },
+  );
+  expect(res.ok(), `postMessage → ${res.status()}`).toBeTruthy();
+  return res.json();
+}
+
+export async function deleteMessage(request: APIRequestContext, token: string, messageId: string) {
+  const res = await request.delete(apiUrl(`/messages/${encodeURIComponent(messageId)}`), {
+    headers: authHeaders(token),
+  });
+  expect(res.ok(), `deleteMessage ${messageId} → ${res.status()}`).toBeTruthy();
+}
+
+export async function postChannel(
+  request: APIRequestContext,
+  token: string,
+  slug: string,
+  opts: { isPrivate?: boolean } = {},
+) {
+  const res = await request.post(apiUrl("/channels"), {
+    headers: authHeaders(token),
+    data: { slug, title: slug, topic: "", isPrivate: Boolean(opts.isPrivate) },
+  });
+  expect(res.ok(), `postChannel → ${res.status()}`).toBeTruthy();
+  return res.json();
+}
+
+export async function uploadFile(
+  request: APIRequestContext,
+  token: string,
+  file: { name: string; mimeType: string; buffer: Buffer },
+) {
+  const res = await request.post(apiUrl("/uploads"), {
+    headers: { Authorization: `Bearer ${token}` },
+    multipart: {
+      file: {
+        name: file.name,
+        mimeType: file.mimeType,
+        buffer: file.buffer,
+      },
+    },
+  });
+  expect(res.ok(), `upload → ${res.status()}`).toBeTruthy();
+  return res.json();
+}
+
 export function expectValidationFields(body: unknown, fieldPath: (string | number)[]) {
   const detail = (body as { detail?: { fields?: unknown[] } })?.detail;
   expect(detail?.fields, "ожидается detail.fields").toBeTruthy();

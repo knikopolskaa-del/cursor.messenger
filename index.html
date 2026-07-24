@@ -5,16 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Messenger V1</title>
 
-    <!-- Prototype-style typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
 
-    <!-- Tailwind via CDN for V1: fewer config files, fast iteration.
-         Later you can switch to compiled Tailwind when you add a design system. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -22,12 +19,13 @@
         theme: {
           extend: {
             boxShadow: {
-              "soft": "0 10px 30px rgba(0,0,0,.08)",
-              "paper": "0 18px 50px rgba(17, 24, 39, .10)",
+              soft: "0 8px 32px rgba(99, 102, 241, 0.10)",
+              card: "0 12px 40px rgba(15, 23, 42, 0.07)",
+              lift: "0 20px 50px rgba(99, 102, 241, 0.14)",
             },
             fontFamily: {
-              proto: ["Caveat", "ui-rounded", "system-ui", "sans-serif"],
-              ui: ["Nunito", "ui-sans-serif", "system-ui", "sans-serif"],
+              display: ["Outfit", "ui-sans-serif", "system-ui", "sans-serif"],
+              ui: ["DM Sans", "ui-sans-serif", "system-ui", "sans-serif"],
             },
           },
         },
@@ -35,8 +33,6 @@
     </script>
 
     <script>
-      // Theme boot: default light, persist in localStorage.
-      // Must run before paint to avoid flash.
       (function () {
         try {
           var t = localStorage.getItem("cm_theme");
@@ -53,61 +49,274 @@
 
     <style>
       :root {
-        --radius-xl: 22px;
+        --radius-xl: 20px;
+        --radius-2xl: 24px;
+        --radius-pill: 999px;
       }
 
-      /* Light theme (auth-like) */
       html[data-theme="light"] {
-        --bg: #d7e8f2;
-        --bg2: #eef6fb;
-        --panel: rgba(255, 255, 255, 0.6);
-        --surface: #f3f4f2;
+        --bg: #f5f6fa;
+        --bg2: #eceef5;
+        --panel: rgba(255, 255, 255, 0.78);
+        --surface: #ffffff;
         --surface2: #ffffff;
-        --border: rgba(15, 23, 42, 0.10);
-        --fg: rgba(15, 23, 42, 0.92);
-        --muted: rgba(51, 65, 85, 0.75);
-        --muted2: rgba(51, 65, 85, 0.60);
+        --border: rgba(99, 102, 241, 0.14);
+        --fg: #1e1b4b;
+        --muted: #64748b;
+        --muted2: #94a3b8;
 
-        --primary: rgba(15, 23, 42, 0.90);
-        --primaryBg: rgba(255, 255, 255, 1);
-        --primaryBorder: rgba(148, 163, 184, 0.55);
-        --ring: rgba(125, 211, 252, 0.70);
+        --accent: #7c3aed;
+        --accent2: #6366f1;
+        --accent-soft: rgba(124, 58, 237, 0.10);
+        --accent-ring: rgba(139, 92, 246, 0.35);
 
-        --danger: rgba(225, 29, 72, 0.85);
-        --dangerBg: rgba(255, 241, 242, 1);
+        --bubble-in: #eef0f6;
+        --bubble-in-fg: #334155;
+
+        --primary: #ffffff;
+        --primaryBorder: transparent;
+        --primaryBg: #ffffff;
+        --ring: rgba(139, 92, 246, 0.30);
+
+        --danger: #e11d48;
+        --dangerBg: #fff1f2;
+
+        --shadow-panel: 0 8px 32px rgba(99, 102, 241, 0.08);
       }
 
-      /* Dark theme (register-like) */
       html[data-theme="dark"] {
-        --bg: #0b1020;
-        --bg2: #0f1730;
-        --panel: rgba(255, 255, 255, 0.05);
-        --surface: rgba(15, 23, 48, 0.80);
-        --surface2: rgba(2, 6, 23, 0.35);
+        --bg: #0f0f1a;
+        --bg2: #161625;
+        --panel: rgba(255, 255, 255, 0.06);
+        --surface: rgba(255, 255, 255, 0.08);
+        --surface2: rgba(255, 255, 255, 0.05);
         --border: rgba(255, 255, 255, 0.10);
-        --fg: rgba(248, 250, 252, 0.95);
-        --muted: rgba(226, 232, 240, 0.78);
-        --muted2: rgba(226, 232, 240, 0.62);
+        --fg: rgba(248, 250, 252, 0.96);
+        --muted: rgba(203, 213, 225, 0.78);
+        --muted2: rgba(148, 163, 184, 0.62);
 
-        --primary: rgba(248, 250, 252, 0.95);
+        --accent: #a78bfa;
+        --accent2: #818cf8;
+        --accent-soft: rgba(167, 139, 250, 0.14);
+        --accent-ring: rgba(167, 139, 250, 0.28);
+
+        --bubble-in: rgba(255, 255, 255, 0.09);
+        --bubble-in-fg: rgba(248, 250, 252, 0.92);
+
+        --primary: #ffffff;
+        --primaryBorder: transparent;
         --primaryBg: rgba(255, 255, 255, 0.10);
-        --primaryBorder: rgba(255, 255, 255, 0.10);
-        --ring: rgba(125, 211, 252, 0.20);
+        --ring: rgba(167, 139, 250, 0.22);
 
-        --danger: rgba(254, 202, 202, 0.95);
+        --danger: #fda4af;
         --dangerBg: rgba(251, 113, 133, 0.12);
+
+        --shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.35);
       }
 
       body {
-        font-family: Nunito, ui-sans-serif, system-ui, sans-serif;
+        font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
         background: var(--bg);
         color: var(--fg);
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+      }
+
+      #root {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .cm-chat-shell {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .cm-chat-messages {
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+
+      .cm-chat-empty {
+        box-sizing: border-box;
+        min-height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .cm-chat-composer {
+        flex-shrink: 0;
+      }
+
+      .cm-app-bg {
+        background:
+          radial-gradient(circle at 12% 8%, rgba(139, 92, 246, 0.10), transparent 42%),
+          radial-gradient(circle at 88% 18%, rgba(99, 102, 241, 0.08), transparent 40%),
+          var(--bg);
+      }
+
+      html[data-theme="dark"] .cm-app-bg {
+        background: var(--bg);
+      }
+
+      html[data-theme="light"] .cm-auth-glow::before,
+      html[data-theme="light"] .cm-auth-glow::after {
+        content: "";
+        position: absolute;
+        border-radius: 9999px;
+        filter: blur(80px);
+        pointer-events: none;
+      }
+
+      html[data-theme="light"] .cm-auth-glow::before {
+        left: -5rem;
+        top: -6rem;
+        width: 30rem;
+        height: 30rem;
+        background: rgba(139, 92, 246, 0.18);
+      }
+
+      html[data-theme="light"] .cm-auth-glow::after {
+        right: -4rem;
+        bottom: -8rem;
+        width: 32rem;
+        height: 32rem;
+        background: rgba(99, 102, 241, 0.14);
+      }
+
+      .cm-glass {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-panel);
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+      }
+
+      .cm-glass-solid {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-panel);
+      }
+
+      .cm-btn-accent {
+        background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+        color: #fff;
+        border: none;
+        box-shadow: 0 10px 28px rgba(99, 102, 241, 0.32);
+      }
+
+      .cm-btn-accent:hover:not(:disabled) {
+        filter: brightness(1.05);
+        box-shadow: 0 14px 34px rgba(99, 102, 241, 0.38);
+      }
+
+      .cm-btn-accent:active:not(:disabled) {
+        transform: translateY(1px);
+      }
+
+      .cm-btn-outline {
+        background: var(--surface);
+        color: var(--accent);
+        border: 1.5px solid rgba(124, 58, 237, 0.35);
+      }
+
+      html[data-theme="dark"] .cm-btn-outline {
+        border-color: rgba(167, 139, 250, 0.35);
+        color: var(--accent);
+      }
+
+      html[data-theme="dark"] .cm-btn-accent {
+        background: #7c3aed;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      }
+
+      html[data-theme="dark"] .cm-btn-accent:hover:not(:disabled) {
+        background: #8b5cf6;
+        filter: none;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+      }
+
+      html[data-theme="dark"] .cm-bubble-out {
+        background: #7c3aed;
+      }
+
+      .cm-bubble-out {
+        background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+        color: #fff;
+      }
+
+      .cm-bubble-in {
+        background: var(--bubble-in);
+        color: var(--bubble-in-fg);
+      }
+
+      .cm-nav-active {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      html[data-theme="dark"] .cm-nav-active {
+        color: #c4b5fd;
+      }
+
+      .cm-input {
+        background: var(--surface);
+        border: 1.5px solid var(--border);
+        color: var(--fg);
+      }
+
+      .cm-input:focus {
+        outline: none;
+        border-color: rgba(139, 92, 246, 0.55);
+        box-shadow: 0 0 0 4px var(--accent-ring);
+      }
+
+      .cm-input-error {
+        border-color: rgba(244, 63, 94, 0.55) !important;
+        background: var(--surface);
+      }
+
+      .cm-input-error:focus {
+        border-color: rgba(244, 63, 94, 0.65) !important;
+        box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.18);
+      }
+
+      html[data-theme="dark"] .cm-input-error {
+        border-color: rgba(251, 113, 133, 0.55) !important;
+      }
+
+      html[data-theme="dark"] .cm-input-error:focus {
+        box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.16);
+      }
+
+      .cm-input::placeholder {
+        color: var(--muted2);
+      }
+
+      .cm-input:-webkit-autofill,
+      .cm-input:-webkit-autofill:hover,
+      .cm-input:-webkit-autofill:focus {
+        -webkit-box-shadow: 0 0 0 1000px var(--surface) inset !important;
+        -webkit-text-fill-color: var(--fg) !important;
+        caret-color: var(--fg);
+        transition: background-color 9999s ease-out;
       }
     </style>
   </head>
-  <body class="bg-[color:var(--bg)] text-[color:var(--fg)]">
+  <body class="cm-app-bg text-[color:var(--fg)]">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
-

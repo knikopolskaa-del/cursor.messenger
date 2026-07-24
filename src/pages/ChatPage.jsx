@@ -12,6 +12,8 @@ import * as api from "../lib/api.js";
 import { normalizeApiMessage, resolveDirectThreadId } from "../lib/chatApi.js";
 import { Button } from "../components/ui.jsx";
 import { Message, Composer, RightPanel, ThreadPanel, ChatSkeleton } from "../components/ChatComponents.jsx";
+import { ChatHeader } from "../components/ChatHeader.jsx";
+import { IconSearch } from "../design/icons.jsx";
 
 export function AppIndexRedirect() {
   const { channels } = useMessenger();
@@ -34,6 +36,7 @@ export default function ChatPage({ kind }) {
   const location = useLocation();
   const [sp] = useSearchParams();
   const focusHandledRef = useRef(false);
+  const messagesScrollRef = useRef(null);
   const focusId = sp.get("focus");
   const threadMessageId = sp.get("thread");
   const panel = sp.get("panel");
@@ -44,6 +47,8 @@ export default function ChatPage({ kind }) {
   const [loadError, setLoadError] = useState(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const apiConversation = useMemo(() => {
     if (kind === "channel") {
@@ -88,6 +93,33 @@ export default function ChatPage({ kind }) {
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
+
+  useEffect(() => {
+    setSearchOpen(false);
+    setSearchQuery("");
+  }, [conversationKey]);
+
+  const filteredMessages = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return messages;
+    return messages.filter((m) => {
+      const text = (m.text || "").toLowerCase();
+      const attachments = (m.attachments || [])
+        .map((a) => `${a.name || ""} ${a.url || ""}`.toLowerCase())
+        .join(" ");
+      return text.includes(q) || attachments.includes(q);
+    });
+  }, [messages, searchQuery]);
+
+  useEffect(() => {
+    if (!searchQuery.trim() || filteredMessages.length === 0) return;
+    const firstId = filteredMessages[0]?.id;
+    if (!firstId) return;
+    const el = document.querySelector(`[data-message-id="${firstId}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [searchQuery, filteredMessages]);
+
+  const visibleMessages = searchQuery.trim() ? filteredMessages : messages;
 
   useEffect(() => {
     focusHandledRef.current = false;
@@ -160,6 +192,28 @@ export default function ChatPage({ kind }) {
     }
   }
 
+  const peerUser = kind === "dm" ? pickUser(users, params.id) : null;
+  const messageVariant = kind === "dm" ? "bubble" : "thread";
+
+  const iconUrl =
+    kind === "channel" ? channelMeta?.iconUrl : kind === "group" ? groupMeta?.iconUrl : "";
+  const iconLabel =
+    kind === "channel"
+      ? channelMeta?.title
+      : kind === "group"
+        ? groupMeta?.title
+        : peerUser?.name;
+  const canEditIcon =
+    (kind === "channel" &&
+      channelMeta &&
+      (me.userType === "admin" || channelMeta.createdBy === me.id)) ||
+    (kind === "group" &&
+      groupMeta &&
+      (me.userType === "admin" || groupMeta.createdBy === me.id));
+  const iconTargetType = kind === "channel" ? "channel" : kind === "group" ? "group" : null;
+  const iconTargetId =
+    kind === "channel" ? channelMeta?.id : kind === "group" ? groupMeta?.id : null;
+
   if (kind === "dm" && !apiConversation) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-[color:var(--muted)]">
@@ -170,70 +224,95 @@ export default function ChatPage({ kind }) {
   }
 
   return (
-    <div className="grid h-full grid-cols-[1fr_300px]">
-      <div className="flex min-h-0 flex-col border-r border-[color:var(--border)] bg-[color:var(--panel)] shadow-paper backdrop-blur">
-        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-5 py-4">
-          <div className="min-w-0">
-            <div className="truncate font-proto text-3xl font-bold leading-[0.95] tracking-tight text-[color:var(--fg)]">
-              {title}
-            </div>
-            <div className="text-xs text-[color:var(--muted)]">{kindLabel}</div>
-          </div>
-          <div className="flex gap-2">
-            <Button to="?panel=info" variant="ghost" size="sm">
-              Инфо
-            </Button>
-            <Button to="?panel=files" variant="ghost" size="sm">
-              Файлы
-            </Button>
-          </div>
-        </div>
+    <div className="flex h-full min-h-0 overflow-hidden">
+      <div className="cm-chat-shell min-h-0 min-w-0 flex-1 border-r border-[color:var(--border)]">
+        <ChatHeader
+          kind={kind}
+          title={title}
+          kindLabel={kindLabel}
+          peerUser={peerUser}
+          iconUrl={iconUrl}
+          iconLabel={iconLabel}
+          token={token}
+          editableIcon={canEditIcon}
+          iconTargetType={iconTargetType}
+          iconTargetId={iconTargetId}
+          messagesScrollRef={messagesScrollRef}
+          searchOpen={searchOpen}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          onSearchToggle={() => {
+            setSearchOpen((open) => {
+              if (open) setSearchQuery("");
+              return !open;
+            });
+          }}
+          onSearchClose={() => {
+            setSearchOpen(false);
+            setSearchQuery("");
+          }}
+          matchCount={filteredMessages.length}
+        />
 
-        <div className="min-h-0 flex-1 overflow-auto bg-[color:var(--bg)]">
+        <div ref={messagesScrollRef} className="cm-chat-messages bg-[color:var(--bg)]">
           {loading ? (
-            <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 text-sm text-[color:var(--muted)]">
+            <div className="cm-chat-empty gap-2 p-6 text-sm text-[color:var(--muted)]">
               <div>Загрузка...</div>
               <ChatSkeleton />
             </div>
           ) : loadError ? (
-            <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-[color:var(--danger)]">
+            <div className="cm-chat-empty gap-2 p-6 text-center text-sm text-[color:var(--danger)]">
               {loadError}
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+            <div className="cm-chat-empty gap-3 p-6 text-center">
               <div className="text-4xl" aria-hidden>{"\u{1F4AC}"}</div>
               <div className="text-sm font-semibold text-[color:var(--fg)]">Сообщений пока нет</div>
               <div className="text-xs text-[color:var(--muted)]">Напишите первое сообщение ниже.</div>
             </div>
+          ) : visibleMessages.length === 0 ? (
+            <div className="cm-chat-empty gap-3 p-6 text-center">
+              <IconSearch className="h-8 w-8 text-[color:var(--muted2)]" aria-hidden />
+              <div className="text-sm font-semibold text-[color:var(--fg)]">Ничего не найдено</div>
+              <div className="text-xs text-[color:var(--muted)]">Попробуйте другой запрос.</div>
+            </div>
           ) : (
-            <div className="space-y-2 px-5 py-4">
-              {messages.map((m) => (
+            <div className={kind === "dm" ? "space-y-4 px-6 py-5" : "space-y-2 px-5 py-4"}>
+              {visibleMessages.map((m) => (
                 <Message
                   key={m.id}
                   message={m}
                   users={users}
                   conversationType={apiConversation.type}
                   conversationId={apiConversation.id}
+                  variant={messageVariant}
+                  currentUserId={me.id}
                 />
               ))}
             </div>
           )}
         </div>
 
-        {sendError && (
-          <div className="border-t border-[color:var(--border)] bg-[color:var(--dangerBg)] px-5 py-2 text-xs text-[color:var(--danger)]">
-            {sendError}
-          </div>
-        )}
-        <Composer onSend={handleSend} disabled={!apiConversation || sending} />
+        <div className="cm-chat-composer bg-[color:var(--panel)]">
+          {sendError && (
+            <div className="border-b border-[color:var(--border)] bg-[color:var(--dangerBg)] px-5 py-2 text-xs text-[color:var(--danger)]">
+              {sendError}
+            </div>
+          )}
+          <Composer onSend={handleSend} disabled={!apiConversation || sending} />
+        </div>
       </div>
 
-      <RightPanel
-        kind={kind}
-        panel={panel}
-        channelMeta={channelMeta}
-        groupMeta={groupMeta}
-      />
+      {panel && (
+        <aside className="h-full w-[300px] flex-shrink-0 min-h-0 overflow-hidden border-l border-[color:var(--border)]">
+          <RightPanel
+            kind={kind}
+            panel={panel}
+            channelMeta={channelMeta}
+            groupMeta={groupMeta}
+          />
+        </aside>
+      )}
 
       {threadMessageId && apiConversation && (
         <div className="fixed inset-y-0 right-0 z-40 w-[400px] border-l border-[color:var(--border)] bg-[color:var(--panel)] shadow-paper backdrop-blur">
@@ -243,6 +322,7 @@ export default function ChatPage({ kind }) {
             users={users}
             conversationType={apiConversation.type}
             conversationId={apiConversation.id}
+            onSent={loadMessages}
           />
         </div>
       )}

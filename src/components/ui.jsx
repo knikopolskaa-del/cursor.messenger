@@ -57,12 +57,12 @@ export function Avatar({ user, size = "md" }) {
         <img
           src={src}
           alt={user.name}
-          className={cx("rounded-xl border border-[color:var(--border)] object-cover", dim)}
+          className={cx("rounded-full border border-[color:var(--border)] object-cover", dim)}
         />
       ) : (
         <div
           className={cx(
-            "flex items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] font-semibold text-[color:var(--muted)]",
+            "flex items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--surface2)] font-semibold text-[color:var(--muted)]",
             dim,
           )}
         >
@@ -83,23 +83,22 @@ export function Avatar({ user, size = "md" }) {
 
 export function Button({ to, onClick, variant = "primary", size = "md", children, state, disabled }) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 font-semibold transition focus:outline-none focus:ring-4";
+    "inline-flex items-center justify-center gap-2 rounded-[var(--radius-pill)] border px-5 font-semibold transition focus:outline-none focus:ring-4";
   const cls = cx(
     base,
-    size === "sm" ? "h-9 text-xs px-3" : "h-11 text-sm",
-    "border-[color:var(--primaryBorder)] shadow-paper backdrop-blur",
+    size === "sm" ? "h-10 text-sm px-4" : "h-12 text-sm",
     disabled && "cursor-not-allowed opacity-60",
     variant === "primary" &&
       !disabled &&
-      "bg-[color:var(--primaryBg)] text-[color:var(--primary)] hover:bg-[color:var(--primaryBg)]/90 focus:ring-[color:var(--ring)]",
-    variant === "primary" && disabled && "bg-[color:var(--primaryBg)] text-[color:var(--muted)]",
+      "cm-btn-accent border-transparent focus:ring-[color:var(--accent-ring)]",
+    variant === "primary" && disabled && "border-[color:var(--border)] bg-[color:var(--surface2)] text-[color:var(--muted2)] shadow-none",
     variant === "ghost" &&
       !disabled &&
-      "bg-[color:var(--panel)] text-[color:var(--fg)] hover:bg-[color:var(--panel)]/80 focus:ring-[color:var(--ring)]",
-    variant === "ghost" && disabled && "bg-[color:var(--panel)] text-[color:var(--muted2)]",
+      "cm-btn-outline shadow-none hover:bg-[color:var(--accent-soft)] focus:ring-[color:var(--accent-ring)]",
+    variant === "ghost" && disabled && "border-[color:var(--border)] bg-[color:var(--panel)] text-[color:var(--muted2)]",
     variant === "danger" &&
       !disabled &&
-      "bg-[color:var(--dangerBg)] text-[color:var(--danger)] border-transparent hover:opacity-95 focus:ring-[color:var(--ring)]",
+      "border-transparent bg-[color:var(--dangerBg)] text-[color:var(--danger)] hover:opacity-95 focus:ring-[color:var(--ring)]",
     variant === "danger" && disabled && "bg-[color:var(--dangerBg)] text-[color:var(--danger)]/70",
   );
   if (to) return <Link to={to} state={state} className={cls}>{children}</Link>;
@@ -162,12 +161,9 @@ export function InputV2({
         placeholder={placeholder}
         autoFocus={autoFocus}
         className={cx(
-          "h-11 w-full rounded-2xl border px-4 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,.06)] outline-none backdrop-blur transition placeholder:text-[color:var(--muted2)]",
-          "bg-[color:var(--surface2)] text-[color:var(--fg)]",
+          "cm-input h-12 w-full rounded-[var(--radius-pill)] px-5 text-sm transition",
           pr,
-          error
-            ? "border-rose-300/40 focus:ring-4 focus:ring-rose-300/20"
-            : "border-[color:var(--border)] focus:ring-4 focus:ring-[color:var(--ring)]",
+          error ? "border-rose-400/60" : "",
         )}
       />
       <div className="absolute inset-y-0 right-2 flex items-center gap-1.5">
@@ -218,12 +214,12 @@ export function Field({ label, error, children }) {
 
 export function Card({ title, subtitle, right, children }) {
   return (
-    <div className="rounded-[var(--radius-xl)] border border-[color:var(--border)] bg-[color:var(--panel)] shadow-paper backdrop-blur">
+    <div className="cm-glass rounded-[var(--radius-xl)]">
       {(title || subtitle || right) && (
         <div className="flex items-start justify-between gap-3 border-b border-[color:var(--border)] px-5 py-4">
           <div className="min-w-0">
             {title && (
-              <div className="truncate font-proto text-2xl font-bold leading-[0.95] tracking-tight text-[color:var(--fg)]">
+              <div className="truncate font-display text-2xl font-bold leading-tight tracking-tight text-[color:var(--fg)]">
                 {title}
               </div>
             )}
@@ -265,7 +261,7 @@ export function Modal({ title, children, onClose }) {
 
 export function PageHeader({ title }) {
   return (
-    <div className="font-proto text-[44px] font-bold leading-[0.92] tracking-tight text-[color:var(--fg)]">
+    <div className="font-display text-4xl font-bold leading-tight tracking-tight text-[color:var(--fg)]">
       {title}
     </div>
   );

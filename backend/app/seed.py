@@ -262,7 +262,7 @@ def seed_if_empty(session: Session) -> None:
                     name=a["name"],
                     size_bytes=a.get("sizeBytes", 1024),
                     mime_type=a.get("mimeType", "application/octet-stream"),
-                    url=a.get("url", "https://example.invalid/file"),
+                    url=a.get("url") or "",
                 )
             )
         aid_start[0] = n

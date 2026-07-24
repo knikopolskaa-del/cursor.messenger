@@ -45,7 +45,9 @@ def list_messages(
         idx = next((i for i, m in enumerate(msgs) if m["id"] == cursor), None)
         if idx is not None:
             msgs = msgs[idx + 1 :]
-    msgs = msgs[:limit]
+        msgs = msgs[:limit]
+    else:
+        msgs = msgs[-limit:]
     return [message_out(store, m) for m in msgs]
 
 

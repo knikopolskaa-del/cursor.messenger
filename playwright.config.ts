@@ -7,6 +7,7 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   // Один воркер: все тесты делят одну SQLite (backend/messenger.db), параллельно возможны блокировки.
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -15,8 +16,11 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: "http://localhost:5173",
+    storageState: "e2e/.auth/test-user.json",
     trace: "on-first-retry",
     locale: "ru-RU",
+    actionTimeout: 15000,
   },
+  timeout: 60000,
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });

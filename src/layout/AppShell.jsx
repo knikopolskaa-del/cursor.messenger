@@ -1,73 +1,73 @@
 import React, { useMemo, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useMessenger } from "../context/MessengerContext.jsx";
 import { pickUser, userTypeLabel } from "../lib/utils.js";
 import { Avatar, Button, Input } from "../components/ui.jsx";
+import { ConversationIcon } from "../components/ConversationIcon.jsx";
 import { SearchDropdown } from "../components/SearchDropdown.jsx";
-import { AuthScopedImage } from "../components/ChatComponents.jsx";
-
-function ConvIcon({ iconUrl, token, label }) {
-  const letter = (label || "?").trim().slice(0, 1).toUpperCase();
-  if (iconUrl) {
-    return (
-      <AuthScopedImage
-        url={iconUrl}
-        token={token}
-        alt=""
-        className="h-7 w-7 flex-shrink-0 rounded-xl border border-[color:var(--border)] object-cover"
-      />
-    );
-  }
-  return (
-    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)] text-[11px] font-semibold text-[color:var(--muted)]">
-      {letter}
-    </span>
-  );
-}
+import { ThemeToggle } from "../components/ThemeToggle.jsx";
+import {
+  IconBookmark,
+  IconChat,
+  IconHash,
+  IconHome,
+  IconPlus,
+  IconUsers,
+} from "../design/icons.jsx";
 
 function NavGroup({ title, right, children }) {
   return (
-    <div className="mb-4">
-      <div className="flex items-center justify-between px-2">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--muted2)]">
+    <div className="mb-5">
+      <div className="flex items-center justify-between px-3">
+        <div className="text-xs font-semibold uppercase tracking-wider text-[color:var(--muted2)]">
           {title}
         </div>
         {right}
       </div>
-      <div className="mt-1 space-y-0.5">{children}</div>
+      <div className="mt-2 space-y-1">{children}</div>
     </div>
   );
 }
 
-function NavItem({ to, label, disabled }) {
-  const cls = [
-    "flex items-center rounded-2xl px-2.5 py-2 text-sm transition",
-    disabled
-      ? "cursor-not-allowed text-[color:var(--muted2)]"
-      : "text-[color:var(--muted)] hover:bg-[color:var(--panel)] hover:text-[color:var(--fg)]",
+function navLinkClass({ isActive }) {
+  return [
+    "flex items-center gap-3 rounded-[var(--radius-xl)] px-3 py-3 text-[15px] font-medium transition",
+    isActive
+      ? "cm-nav-active"
+      : "text-[color:var(--muted)] hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--fg)]",
   ].join(" ");
-  if (disabled) return <div className={cls}>{label}</div>;
+}
+
+function NavItem({ to, label, icon: Icon, disabled, end = false }) {
+  if (disabled) {
+    return (
+      <div className="flex cursor-not-allowed items-center gap-3 rounded-[var(--radius-xl)] px-3 py-3 text-[15px] text-[color:var(--muted2)]">
+        {Icon && <Icon className="h-5 w-5 flex-shrink-0 opacity-50" />}
+        {label}
+      </div>
+    );
+  }
   return (
-    <Link to={to} className={cls}>
+    <NavLink to={to} end={end} className={navLinkClass}>
+      {Icon && <Icon className="h-5 w-5 flex-shrink-0" />}
       {label}
-    </Link>
+    </NavLink>
   );
 }
 
 function NavConversation({ to, label, hint, left }) {
   return (
-    <Link
-      to={to}
-      className="flex items-center gap-2 rounded-2xl px-2.5 py-2 text-sm text-[color:var(--muted)] hover:bg-[color:var(--panel)] hover:text-[color:var(--fg)]"
-    >
-      {left ?? <span className="h-7 w-7 rounded-xl border border-[color:var(--border)] bg-[color:var(--panel)]" />}
+    <NavLink to={to} className={navLinkClass}>
+      {left ?? (
+        <span className="h-9 w-9 rounded-full border border-[color:var(--border)] bg-[color:var(--surface2)]" />
+      )}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {hint && (
-        <span className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-2 py-1 text-[10px] text-[color:var(--muted2)]">
+        <span className="rounded-full bg-[color:var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[color:var(--accent)]">
           {hint}
         </span>
       )}
-    </Link>
+    </NavLink>
   );
 }
 
@@ -86,83 +86,98 @@ export default function AppShell() {
     });
   }, [directs, me.id]);
 
+  const searching = query.trim().length > 0;
+
   return (
-    <div className="flex h-dvh w-full flex-col bg-[color:var(--bg)]">
+    <div className="flex h-dvh w-full flex-col">
       {workspaceError && (
-        <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-[color:var(--border)] bg-[color:var(--panel)] px-4 py-2 text-xs text-[color:var(--fg)] shadow-paper backdrop-blur">
+        <div className="cm-glass flex flex-shrink-0 items-center justify-between gap-3 border-b px-5 py-3 text-sm text-[color:var(--fg)]">
           <span className="min-w-0">{workspaceError}</span>
           <button
             type="button"
             onClick={() => retryWorkspace()}
-            className="flex-shrink-0 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-1.5 text-[11px] font-semibold text-[color:var(--fg)] hover:bg-[color:var(--surface2)]/90 focus:outline-none focus:ring-4 focus:ring-[color:var(--ring)]"
+            className="cm-btn-outline flex-shrink-0 rounded-[var(--radius-pill)] px-4 py-2 text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-ring)]"
           >
             Повторить
           </button>
         </div>
       )}
-      <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr]">
-        <aside className="flex h-full flex-col border-r border-[color:var(--border)] bg-[color:var(--panel)] shadow-paper backdrop-blur">
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <div className="min-w-0">
-              <div className="truncate font-proto text-3xl font-bold leading-[0.95] tracking-tight text-[color:var(--fg)]">
-                Мессенджер компании
-              </div>
-              <div className="flex items-center gap-1.5 truncate text-xs text-[color:var(--muted)]">
-                <Avatar user={me} size="sm" />
-                <span>{me.name}</span>
-                <span className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-2 py-1 text-[10px] font-semibold text-[color:var(--muted2)]">
-                  {userTypeLabel(me.userType)}
-                </span>
-              </div>
+      <div className="grid h-full min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] overflow-hidden">
+        <aside className="cm-glass flex h-full min-h-0 flex-col border-r">
+          <div className="border-b border-[color:var(--border)] px-4 py-4">
+            <div className="mb-3 flex items-center justify-between gap-3 px-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[color:var(--muted2)]">
+                Мессенджер
+              </span>
+              <ThemeToggle compact />
             </div>
-            <button
-              type="button"
-              onClick={() => logout()}
-              className="flex-shrink-0 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-xs font-semibold text-[color:var(--fg)] hover:bg-[color:var(--surface2)]/90 focus:outline-none focus:ring-4 focus:ring-[color:var(--ring)]"
+            <Link
+              to="/app/me"
+              className="flex items-center gap-3 rounded-[var(--radius-xl)] p-2 transition hover:bg-[color:var(--accent-soft)]/55 focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-ring)]"
             >
-              Выйти
-            </button>
+              <Avatar user={me} size="md" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[15px] font-semibold leading-tight text-[color:var(--fg)]">
+                  {me.name}
+                </div>
+                <div className="truncate text-xs text-[color:var(--muted)]">
+                  {userTypeLabel(me.userType)}
+                </div>
+              </div>
+            </Link>
           </div>
 
-          <div className="relative px-4 pb-3">
+          <div className="px-4 py-4">
             <Input value={query} onChange={setQuery} placeholder="Поиск…" />
-            {query.length > 0 && (
-              <div className="absolute left-4 right-4 top-full z-30 mt-1">
-                <SearchDropdown query={query} onClose={() => setQuery("")} />
-              </div>
-            )}
-            <div className="mt-2 flex justify-end">
-              <Button to="/app/new" state={createLinkState} variant="ghost" size="sm">
-                + Создать
+            <div className="mt-3">
+              <Button to="/app/new" state={createLinkState} variant="primary" size="sm">
+                <IconPlus className="h-4 w-4" />
+                Создать
               </Button>
             </div>
           </div>
 
-          <nav className="flex-1 overflow-auto px-2 pb-4">
-            <NavGroup title="Быстрый доступ">
-              <NavItem to="/app/threads" label="Треды" />
-              <NavItem to="/app/mentions" label="Упоминания" />
-              <NavItem to="/app/saved" label="Сохранённое" />
-              {!isGuest && <NavItem to="/app/directory" label="Сотрудники" disabled />}
+          <nav className="flex-1 overflow-auto px-3 pb-4">
+            {searching ? (
+              <SearchDropdown query={query} onClose={() => setQuery("")} />
+            ) : (
+              <>
+            <NavGroup title="Навигация">
+              <NavItem to="/app" label="Главная" icon={IconHome} end />
+              <NavItem to="/app/threads" label="Треды" icon={IconChat} />
+              <NavItem to="/app/mentions" label="Упоминания" icon={IconUsers} />
+              <NavItem to="/app/saved" label="Сохранённое" icon={IconBookmark} />
+              {!isGuest && <NavItem to="/app/directory" label="Сотрудники" icon={IconUsers} disabled />}
             </NavGroup>
 
             <NavGroup
               title="Каналы"
               right={
-                <Button to="/app/new/channel" state={createLinkState} variant="ghost" size="sm">
-                  +
-                </Button>
+                <Link
+                  to="/app/new/channel"
+                  state={createLinkState}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)]"
+                  aria-label="Создать канал"
+                >
+                  <IconPlus className="h-4 w-4" />
+                </Link>
               }
             >
-              {channels
-                .filter((c) => !query || c.title.toLowerCase().includes(query.toLowerCase()))
-                .map((c) => (
+              {channels.map((c) => (
                   <NavConversation
                     key={c.id}
                     to={`/app/c/${c.id}`}
                     label={`#${c.title}`}
                     hint={c.isPrivate ? "Приватный" : null}
-                    left={<ConvIcon iconUrl={c.iconUrl} token={token} label={c.title} />}
+                    left={
+                      <ConversationIcon
+                        kind="channel"
+                        iconUrl={c.iconUrl}
+                        token={token}
+                        label={c.title}
+                        size="sm"
+                      />
+                    }
                   />
                 ))}
             </NavGroup>
@@ -170,18 +185,17 @@ export default function AppShell() {
             <NavGroup
               title="Личные сообщения"
               right={
-                <Button to="/app/new/dm" state={createLinkState} variant="ghost" size="sm">
-                  +
-                </Button>
+                <Link
+                  to="/app/new/dm"
+                  state={createLinkState}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)]"
+                  aria-label="Новое сообщение"
+                >
+                  <IconPlus className="h-4 w-4" />
+                </Link>
               }
             >
-              {dmEntries
-                .filter((d) => {
-                  if (!query) return true;
-                  const peer = pickUser(users, d.peerUserId);
-                  return peer?.name?.toLowerCase().includes(query.toLowerCase());
-                })
-                .map((d) => {
+              {dmEntries.map((d) => {
                   const peer = pickUser(users, d.peerUserId) ?? { id: d.peerUserId, name: d.peerUserId };
                   return (
                     <NavConversation
@@ -197,41 +211,65 @@ export default function AppShell() {
             <NavGroup
               title="Группы"
               right={
-                <Button to="/app/new/group" state={createLinkState} variant="ghost" size="sm">
-                  +
-                </Button>
+                <Link
+                  to="/app/new/group"
+                  state={createLinkState}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--accent)] hover:bg-[color:var(--accent-soft)]"
+                  aria-label="Создать группу"
+                >
+                  <IconPlus className="h-4 w-4" />
+                </Link>
               }
             >
-              {groups
-                .filter((g) => !query || g.title.toLowerCase().includes(query.toLowerCase()))
-                .map((g) => (
+              {groups.map((g) => (
                   <NavConversation
                     key={g.id}
                     to={`/app/g/${g.id}`}
                     label={g.title}
-                    hint={`${g.memberIds?.length ?? 0} участника`}
-                    left={<ConvIcon iconUrl={g.iconUrl} token={token} label={g.title} />}
+                    hint={`${g.memberIds?.length ?? 0}`}
+                    left={
+                      <ConversationIcon
+                        kind="group"
+                        iconUrl={g.iconUrl}
+                        token={token}
+                        label={g.title}
+                        size="sm"
+                      />
+                    }
                   />
                 ))}
             </NavGroup>
+              </>
+            )}
           </nav>
 
-          <div className="border-t border-[color:var(--border)] p-3">
+          <div className="border-t border-[color:var(--border)] p-4">
             <div className="flex items-center justify-between gap-2">
-              <Link to="/app/me" className="text-xs font-semibold text-[color:var(--muted)] hover:text-[color:var(--fg)]">
-                Мой профиль
+              <Link
+                to="/app/me"
+                className="text-sm font-semibold text-[color:var(--muted)] hover:text-[color:var(--accent)]"
+              >
+                Профиль
               </Link>
-              <Link to="/app/settings" className="text-xs font-semibold text-[color:var(--muted)] hover:text-[color:var(--fg)]">
+              <Link
+                to="/app/settings"
+                className="text-sm font-semibold text-[color:var(--muted)] hover:text-[color:var(--accent)]"
+              >
                 Настройки
               </Link>
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="text-sm font-semibold text-[color:var(--muted)] hover:text-[color:var(--danger)]"
+              >
+                Выйти
+              </button>
             </div>
           </div>
         </aside>
 
-        <main className="flex h-full flex-col overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-auto">
-            <Outlet />
-          </div>
+        <main className="h-full min-h-0 overflow-auto">
+          <Outlet />
         </main>
       </div>
     </div>

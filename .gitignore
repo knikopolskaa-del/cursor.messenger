@@ -9,5 +9,6 @@ venv/
 backend/messenger.db
 backend/uploads/
 test-results/
+e2e/.auth/test-user.json
 playwright-report/
 .playwright/

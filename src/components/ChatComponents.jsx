@@ -4,10 +4,12 @@ import { pickUser, userStub, formatTime, cx } from "../lib/utils.js";
 import { useMessenger } from "../context/MessengerContext.jsx";
 import * as api from "../lib/api.js";
 import { absoluteAssetUrl, formatAttachmentSize } from "../lib/chatApi.js";
-import { Avatar, Button, Card, Input } from "./ui.jsx";
+import { CHAT_MEDIA_MENUS } from "./ChatHeader.jsx";
+import { Avatar, Button, Card } from "./ui.jsx";
+import { IconImage, IconSend } from "../design/icons.jsx";
 
 /** Изображения с URL `/files/…` грузим с Bearer, остальные — как есть. */
-export function AuthScopedImage({ url, token, alt, className }) {
+export function AuthScopedImage({ url, token, alt, className, onError }) {
   const needsAuth = typeof url === "string" && url.startsWith("/files/");
   const abs = absoluteAssetUrl(url);
   const [src, setSrc] = useState("");
@@ -52,7 +54,177 @@ export function AuthScopedImage({ url, token, alt, className }) {
       />
     );
   }
-  return <img src={src} alt={alt} className={className} />;
+  return <img src={src} alt={alt} className={className} onError={onError} />;
+}
+
+function attachmentKindLabel(type) {
+  if (type === "image") return "IMG";
+  if (type === "video") return "VID";
+  return "FILE";
+}
+
+function useAttachmentSrc(url, token) {
+  const [src, setSrc] = useState("");
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setSrc("");
+    setFailed(false);
+    if (!url) {
+      setFailed(true);
+      return undefined;
+    }
+    const needsAuth = typeof url === "string" && url.startsWith("/files/");
+    if (!needsAuth) {
+      setSrc(absoluteAssetUrl(url));
+      return undefined;
+    }
+    if (!token) {
+      setFailed(true);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const out = await api.getFileUrl(token, url);
+        if (cancelled) return;
+        if (out?.url) setSrc(out.url);
+        else setFailed(true);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [url, token]);
+
+  return { src, failed, loading: Boolean(url) && !failed && !src };
+}
+
+function MessageAttachmentFileRow({ attachment: a, token, unavailable = false }) {
+  const label = attachmentKindLabel(a.type);
+  return (
+    <div className="flex max-w-full items-center gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--panel)] px-3 py-2.5 shadow-paper backdrop-blur">
+      <span
+        className={cx(
+          "inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] text-[color:var(--accent)]",
+          a.type === "image" && "text-[color:var(--accent)]",
+        )}
+        aria-hidden
+      >
+        {a.type === "image" ? (
+          <IconImage className="h-5 w-5" />
+        ) : (
+          <span className="text-[10px] font-bold">{label}</span>
+        )}
+      </span>
+      <button
+        type="button"
+        onClick={() =>
+          a.url && !unavailable
+            ? openAttachmentInBrowser(a.url, token).catch(() => {
+                /* ignore */
+              })
+            : undefined
+        }
+        disabled={!a.url || unavailable}
+        className={cx(
+          "min-w-0 flex-1 text-left",
+          a.url && !unavailable ? "cursor-pointer" : "cursor-default",
+        )}
+        title={a.url && !unavailable ? "Открыть" : undefined}
+      >
+        <div className="truncate text-xs font-semibold text-[color:var(--fg)]">
+          {label} {a.name || "Файл"}
+        </div>
+        <div className="text-[11px] text-[color:var(--muted2)]">
+          {a.size || formatAttachmentSize(a.sizeBytes)}
+          {(!a.url || unavailable) && " · файл недоступен"}
+        </div>
+      </button>
+      {a.url && !unavailable ? (
+        <button
+          type="button"
+          onClick={() =>
+            downloadAttachment(a.url, token, a.name).catch(() => {
+              /* ignore */
+            })
+          }
+          className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] text-[color:var(--fg)]/80 hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--accent)]"
+          aria-label="Скачать"
+          title="Скачать"
+        >
+          <DownloadIcon />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function MessageAttachmentImage({ attachment: a, token }) {
+  const { src, failed, loading } = useAttachmentSrc(a.url, token);
+  const [imgBroken, setImgBroken] = useState(false);
+
+  useEffect(() => {
+    setImgBroken(false);
+  }, [a.url]);
+
+  if (failed || imgBroken) {
+    return <MessageAttachmentFileRow attachment={a} token={token} unavailable />;
+  }
+
+  if (loading) {
+    return (
+      <div className="inline-flex min-h-32 min-w-44 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)]">
+        <IconImage className="h-8 w-8 animate-pulse text-[color:var(--muted2)]" aria-hidden />
+        <span className="sr-only">Загрузка изображения</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative inline-block max-w-full">
+      <button
+        type="button"
+        onClick={() =>
+          openAttachmentInBrowser(a.url, token).catch(() => {
+            /* ignore */
+          })
+        }
+        className="block"
+        title="Открыть"
+      >
+        <img
+          src={src}
+          alt={a.name || "Изображение"}
+          className="max-h-64 max-w-full rounded-2xl border border-[color:var(--border)] object-contain shadow-paper"
+          onError={() => setImgBroken(true)}
+        />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          downloadAttachment(a.url, token, a.name).catch(() => {
+            /* ignore */
+          });
+        }}
+        className="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-black/30 text-white/85 backdrop-blur hover:bg-black/45"
+        aria-label="Скачать"
+        title="Скачать"
+      >
+        <DownloadIcon />
+      </button>
+    </div>
+  );
+}
+
+function MessageAttachment({ attachment, token }) {
+  if (attachment.type === "image" && attachment.url) {
+    return <MessageAttachmentImage attachment={attachment} token={token} />;
+  }
+  return <MessageAttachmentFileRow attachment={attachment} token={token} />;
 }
 
 async function downloadAttachment(url, token, filename) {
@@ -124,11 +296,14 @@ export function Message({
   users,
   conversationType,
   conversationId,
+  variant = "thread",
+  currentUserId,
 }) {
   const { token } = useMessenger();
   const [saveHint, setSaveHint] = useState(null);
   const [saveErr, setSaveErr] = useState(null);
   const author = pickUser(users, message.authorId) ?? userStub(message.authorId);
+  const isOwn = variant === "bubble" && currentUserId && message.authorId === currentUserId;
   const rawText = (message.text || "").replace(/\u2060/g, "").trim();
   const showText = rawText.length > 0;
 
@@ -148,6 +323,59 @@ export function Message({
       setSaveErr(api.formatApiError(e));
       setTimeout(() => setSaveErr(null), 4000);
     }
+  }
+
+  if (variant === "bubble") {
+    const hasAttachments = (message.attachments?.length ?? 0) > 0;
+
+    return (
+      <div
+        data-message-id={message.id}
+        className={cx("flex", isOwn ? "justify-end" : "justify-start")}
+      >
+        <div className={cx("max-w-[min(520px,85%)]", isOwn ? "text-right" : "text-left")}>
+          {!isOwn && (
+            <div className="mb-1.5 flex items-center gap-2 px-1">
+              <Avatar user={author} size="sm" />
+              <span className="text-sm font-semibold text-[color:var(--fg)]">{author.name}</span>
+              <span className="text-xs text-[color:var(--muted2)]">{formatTime(message.createdAt)}</span>
+            </div>
+          )}
+          {(showText || hasAttachments) && (
+            <div
+              className={cx(
+                "inline-block max-w-full text-left shadow-soft",
+                hasAttachments && !showText ? "p-2" : "px-5 py-3.5",
+                "rounded-[var(--radius-xl)] text-[15px] leading-relaxed",
+                isOwn ? "cm-bubble-out rounded-br-md" : "cm-bubble-in rounded-bl-md",
+              )}
+            >
+              {showText && <div className="whitespace-pre-wrap">{message.text}</div>}
+              {hasAttachments && (
+                <div className={cx("space-y-2", showText && "mt-2")}>
+                  {message.attachments.map((a) => (
+                    <MessageAttachment key={a.id ?? a.url ?? a.name} attachment={a} token={token} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {isOwn && (
+            <div className="mt-1 px-1 text-xs text-[color:var(--muted2)]">{formatTime(message.createdAt)}</div>
+          )}
+          {(saveHint || saveErr) && (
+            <div
+              className={cx(
+                "mt-1 px-1 text-xs",
+                saveErr ? "text-[color:var(--danger)]" : "text-emerald-600/90",
+              )}
+            >
+              {saveErr || saveHint}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -174,87 +402,7 @@ export function Message({
         {message.attachments?.length > 0 && (
           <div className="mt-2 space-y-2">
             {message.attachments.map((a) => (
-              <div key={a.id ?? a.url} className="space-y-1.5">
-                {a.type === "image" && a.url ? (
-                  <div className="relative inline-block max-w-full">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openAttachmentInBrowser(a.url, token).catch(() => {
-                          /* ignore */
-                        })
-                      }
-                      className="block"
-                      title="Открыть"
-                    >
-                      <AuthScopedImage
-                        url={a.url}
-                        token={token}
-                        alt={a.name || ""}
-                        className="max-h-64 max-w-full rounded-2xl border border-[color:var(--border)] object-contain shadow-paper"
-                      />
-                    </button>
-                    {a.url && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadAttachment(a.url, token, a.name).catch(() => {
-                            /* ignore */
-                          });
-                        }}
-                        className="absolute right-2 top-2 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-black/30 text-white/85 backdrop-blur hover:bg-black/45"
-                        aria-label="Скачать"
-                        title="Скачать"
-                      >
-                        <DownloadIcon />
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--panel)] px-3 py-2 shadow-paper backdrop-blur">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        a.url
-                          ? openAttachmentInBrowser(a.url, token).catch(() => {
-                              /* ignore */
-                            })
-                          : undefined
-                      }
-                      disabled={!a.url}
-                      className={cx(
-                        "min-w-0 flex-1 text-left",
-                        a.url ? "cursor-pointer" : "cursor-not-allowed opacity-70",
-                      )}
-                      title={a.url ? "Открыть" : "Нет ссылки"}
-                    >
-                      <div className="truncate text-xs font-semibold">
-                        {a.type === "image" ? "IMG" : a.type === "video" ? "VID" : "FILE"} {a.name}
-                      </div>
-                      <div className="text-[11px] text-[color:var(--muted2)]">{a.size}</div>
-                    </button>
-                    {a.url ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          downloadAttachment(a.url, token, a.name).catch(() => {
-                            /* ignore */
-                          });
-                        }}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] text-[color:var(--fg)]/80 hover:bg-[color:var(--surface2)]/90"
-                        aria-label="Скачать"
-                        title="Скачать"
-                      >
-                        <DownloadIcon />
-                      </button>
-                    ) : (
-                      <span className="text-[11px] text-[color:var(--muted2)]">Нет ссылки</span>
-                    )}
-                  </div>
-                )}
-              </div>
+              <MessageAttachment key={a.id ?? a.url ?? a.name} attachment={a} token={token} />
             ))}
           </div>
         )}
@@ -379,7 +527,7 @@ export function Composer({ onSend, disabled }) {
   }
 
   return (
-    <div className="border-t border-[color:var(--border)] bg-[color:var(--panel)] p-4 shadow-paper backdrop-blur">
+    <div className="border-t border-[color:var(--border)] bg-[color:var(--panel)] p-5 backdrop-blur">
       <input
         ref={fileRef}
         type="file"
@@ -412,42 +560,42 @@ export function Composer({ onSend, disabled }) {
           ))}
         </div>
       )}
-      <div
-        className={cx(
-          "flex items-end gap-3 rounded-[var(--radius-xl)] border bg-[color:var(--surface)] p-3 shadow-paper transition",
-          canSend ? "border-[color:var(--primaryBorder)]" : "border-[color:var(--border)]",
-        )}
-      >
+      <div className="flex items-center gap-3 rounded-[var(--radius-pill)] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 shadow-soft">
+        <button
+          type="button"
+          disabled={disabled || !token}
+          onClick={() => fileRef.current?.click()}
+          className="flex-shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-[color:var(--muted)] transition hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          +
+        </button>
         <textarea
-          rows={2}
+          rows={1}
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSendClick();
+            }
+          }}
           placeholder="Написать сообщение…"
-          className="min-h-[44px] w-full resize-none bg-transparent text-sm text-[color:var(--fg)]/90 placeholder:text-[color:var(--muted2)] focus:outline-none"
+          className="max-h-32 min-h-[44px] w-full resize-none bg-transparent py-2.5 text-[15px] text-[color:var(--fg)] placeholder:text-[color:var(--muted2)] focus:outline-none"
         />
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={disabled || !token}
-            onClick={() => fileRef.current?.click()}
-            className="h-11 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-4 text-xs font-semibold text-[color:var(--fg)]/80 hover:bg-[color:var(--surface2)]/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Прикрепить
-          </button>
-          <button
-            type="button"
-            disabled={!canSend}
-            onClick={handleSendClick}
-            className={cx(
-              "h-11 rounded-2xl border px-4 text-xs font-semibold transition",
-              !canSend
-                ? "cursor-not-allowed border-[color:var(--border)] bg-[color:var(--primaryBg)] text-[color:var(--muted2)]"
-                : "border-[color:var(--primaryBorder)] bg-[color:var(--primaryBg)] text-[color:var(--primary)] hover:bg-[color:var(--primaryBg)]/90",
-            )}
-          >
-            Отправить
-          </button>
-        </div>
+        <button
+          type="button"
+          disabled={!canSend}
+          onClick={handleSendClick}
+          className={cx(
+            "inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-ring)]",
+            canSend
+              ? "cm-btn-accent shadow-none"
+              : "cursor-not-allowed bg-[color:var(--accent-soft)] text-[color:var(--muted2)]",
+          )}
+          aria-label="Отправить"
+        >
+          <IconSend className="h-5 w-5" />
+        </button>
       </div>
     </div>
   );
@@ -456,68 +604,20 @@ export function Composer({ onSend, disabled }) {
 export function RightPanel({ kind, panel, channelMeta, groupMeta }) {
   const [sp] = useSearchParams();
   const navigate = useNavigate();
-  const { users, me, token, refreshWorkspace } = useMessenger();
-  const [iconDraft, setIconDraft] = useState("");
-  const [iconBusy, setIconBusy] = useState(false);
-  const [iconNote, setIconNote] = useState(null);
-  const iconFileRef = useRef(null);
-
-  const canEditChannelIcon =
-    kind === "channel" &&
-    channelMeta &&
-    (me.userType === "admin" || channelMeta.createdBy === me.id);
-  const canEditGroupIcon =
-    kind === "group" && groupMeta && (me.userType === "admin" || groupMeta.createdBy === me.id);
-  const showIconEditor = canEditChannelIcon || canEditGroupIcon;
-
-  useEffect(() => {
-    if (kind === "channel" && channelMeta) setIconDraft(channelMeta.iconUrl || "");
-    else if (kind === "group" && groupMeta) setIconDraft(groupMeta.iconUrl || "");
-    else setIconDraft("");
-  }, [kind, channelMeta?.id, channelMeta?.iconUrl, groupMeta?.id, groupMeta?.iconUrl]);
-
-  async function saveIconUrl() {
-    if (!token || !showIconEditor) return;
-    setIconBusy(true);
-    setIconNote(null);
-    try {
-      if (canEditChannelIcon) {
-        await api.patchChannel(token, channelMeta.id, { iconUrl: iconDraft.trim() });
-      } else if (canEditGroupIcon) {
-        await api.patchGroup(token, groupMeta.id, { iconUrl: iconDraft.trim() });
-      }
-      await refreshWorkspace();
-      setIconNote("Сохранено");
-      setTimeout(() => setIconNote(null), 2000);
-    } catch (e) {
-      setIconNote(api.formatApiError(e));
-    } finally {
-      setIconBusy(false);
-    }
-  }
-
-  async function onIconFile(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file || !token) return;
-    setIconBusy(true);
-    setIconNote(null);
-    try {
-      const up = await api.postUpload(token, file);
-      setIconDraft(up.url || "");
-    } catch (err) {
-      setIconNote(api.formatApiError(err));
-    } finally {
-      setIconBusy(false);
-    }
-  }
+  const { users } = useMessenger();
 
   const panelTitles = {
     info: "Информация",
     members: "Участники",
     pins: "Закреплённые",
-    files: "Файлы",
+    docs: "Документы",
+    video: "Видео",
+    photo: "Фото",
+    links: "Ссылки",
+    audio: "Аудио",
   };
+
+  const mediaPanel = CHAT_MEDIA_MENUS.find((item) => item.key === panel);
 
   const closePanel = () => {
     const next = new URLSearchParams(sp);
@@ -526,56 +626,27 @@ export function RightPanel({ kind, panel, channelMeta, groupMeta }) {
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+    <div className="flex h-full flex-col text-[color:var(--fg)]">
+      <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-3">
         <div className="text-sm font-semibold">{panelTitles[panel] ?? "Информация"}</div>
-        {panel && (
-          <button
-            type="button"
-            onClick={closePanel}
-            className="rounded-lg bg-white/5 px-2 py-1 text-xs text-white/65 hover:bg-white/10"
-          >
-            Закрыть
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={closePanel}
+          className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface2)] px-2 py-1 text-xs text-[color:var(--muted)] hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--fg)]"
+        >
+          Закрыть
+        </button>
       </div>
 
       <div className="flex-1 space-y-3 overflow-auto p-4">
-        <div className="grid grid-cols-2 gap-1.5">
-          {[["info", "Инфо"], ["members", "Участники"], ["pins", "Закреплённые"], ["files", "Файлы"]].map(
-            ([key, label]) => (
-              <Button key={key} to={`?panel=${key}`} variant="ghost" size="sm">
-                {label}
-              </Button>
-            ),
-          )}
-        </div>
-
         {panel === "members" && (
           <div className="space-y-2">
             {users.slice(0, 8).map((u) => (
-              <div key={u.id} className="flex items-center gap-2 rounded-lg bg-white/[0.03] p-2">
+              <div key={u.id} className="flex items-center gap-2 rounded-lg bg-[color:var(--surface2)] p-2">
                 <Avatar user={u} size="sm" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm">{u.name}</div>
-                  <div className="truncate text-[11px] text-white/40">{u.title}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {panel === "files" && (
-          <div className="space-y-2">
-            {[{ name: "spec-v1.pdf", size: "842 KB" }, { name: "layout.png", size: "1.4 MB" }].map((f) => (
-              <div
-                key={f.name}
-                className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-2"
-              >
-                <span className="text-lg">DOC</span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-semibold">{f.name}</div>
-                  <div className="text-[11px] text-white/40">{f.size}</div>
+                  <div className="truncate text-[11px] text-[color:var(--muted2)]">{u.title}</div>
                 </div>
               </div>
             ))}
@@ -583,100 +654,58 @@ export function RightPanel({ kind, panel, channelMeta, groupMeta }) {
         )}
 
         {panel === "pins" && (
-          <div className="text-xs text-white/55">Закреплённых сообщений нет.</div>
+          <div className="text-xs text-[color:var(--muted)]">Закреплённых сообщений нет.</div>
         )}
 
+        {mediaPanel && (() => {
+          const MediaIcon = mediaPanel.icon;
+          return (
+          <div className="flex flex-col items-center gap-3 rounded-[var(--radius-xl)] border border-dashed border-[color:var(--border)] bg-[color:var(--surface2)]/60 px-4 py-10 text-center">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--accent-soft)] text-[color:var(--accent)]">
+              <MediaIcon className="h-5 w-5" />
+            </span>
+            <div className="text-sm font-semibold text-[color:var(--fg)]">{mediaPanel.label}</div>
+            <div className="text-xs text-[color:var(--muted)]">
+              Пока нет файлов этого типа в этом чате.
+            </div>
+          </div>
+          );
+        })()}
+
         {(panel === "info" || !panel) && kind === "channel" && (
-          <div className="space-y-3 text-xs text-white/55">
+          <div className="space-y-4 text-xs text-[color:var(--muted)]">
             <div>{channelMeta?.topic || "Тема канала и основная информация будут здесь."}</div>
-            {showIconEditor && (
-              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-white/70">
-                <div className="mb-2 font-semibold text-white/80">Иконка канала (URL)</div>
-                <Input value={iconDraft} onChange={setIconDraft} placeholder="https://… или /files/…" />
-                <input
-                  ref={iconFileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={onIconFile}
-                />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={iconBusy}
-                    onClick={() => iconFileRef.current?.click()}
-                    className="rounded-lg bg-white/5 px-2 py-1 text-[11px] text-white/70 hover:bg-white/10 disabled:opacity-40"
-                  >
-                    Загрузить файл
-                  </button>
-                  <button
-                    type="button"
-                    disabled={iconBusy}
-                    onClick={saveIconUrl}
-                    className="rounded-lg bg-indigo-500/80 px-2 py-1 text-[11px] text-white hover:bg-indigo-500 disabled:opacity-40"
-                  >
-                    Сохранить URL
-                  </button>
-                </div>
-                {iconNote && (
-                  <div
-                    className={cx(
-                      "mt-2 text-[11px]",
-                      iconNote === "Сохранено" ? "text-emerald-300/90" : "text-rose-200/90",
-                    )}
-                  >
-                    {iconNote}
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="flex flex-wrap gap-2">
+              <Button to="?panel=members" variant="ghost" size="sm">
+                Участники
+              </Button>
+              <Button to="?panel=pins" variant="ghost" size="sm">
+                Закреплённые
+              </Button>
+            </div>
           </div>
         )}
 
         {(panel === "info" || !panel) && kind === "group" && (
-          <div className="space-y-3 text-xs text-white/55">
+          <div className="space-y-4 text-xs text-[color:var(--muted)]">
             <div>Участников: {groupMeta?.memberIds?.length ?? 0}</div>
-            {showIconEditor && (
-              <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 text-white/70">
-                <div className="mb-2 font-semibold text-white/80">Иконка группы (URL)</div>
-                <Input value={iconDraft} onChange={setIconDraft} placeholder="https://… или /files/…" />
-                <input
-                  ref={iconFileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={onIconFile}
-                />
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={iconBusy}
-                    onClick={() => iconFileRef.current?.click()}
-                    className="rounded-lg bg-white/5 px-2 py-1 text-[11px] text-white/70 hover:bg-white/10 disabled:opacity-40"
-                  >
-                    Загрузить файл
-                  </button>
-                  <button
-                    type="button"
-                    disabled={iconBusy}
-                    onClick={saveIconUrl}
-                    className="rounded-lg bg-indigo-500/80 px-2 py-1 text-[11px] text-white hover:bg-indigo-500 disabled:opacity-40"
-                  >
-                    Сохранить URL
-                  </button>
-                </div>
-                {iconNote && (
-                  <div
-                    className={cx(
-                      "mt-2 text-[11px]",
-                      iconNote === "Сохранено" ? "text-emerald-300/90" : "text-rose-200/90",
-                    )}
-                  >
-                    {iconNote}
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="flex flex-wrap gap-2">
+              <Button to="?panel=members" variant="ghost" size="sm">
+                Участники
+              </Button>
+              <Button to="?panel=pins" variant="ghost" size="sm">
+                Закреплённые
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {(panel === "info" || !panel) && kind === "dm" && (
+          <div className="space-y-4 text-xs text-[color:var(--muted)]">
+            <div>Личная переписка.</div>
+            <Button to="?panel=pins" variant="ghost" size="sm">
+              Закреплённые
+            </Button>
           </div>
         )}
       </div>
@@ -690,11 +719,17 @@ export function ThreadPanel({
   users,
   conversationType,
   conversationId,
+  onSent,
 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { token } = useMessenger();
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState(null);
   const root = (conversationMessages ?? []).find((m) => m.id === rootMessageId);
   const replies = (conversationMessages ?? []).filter((m) => m.replyToId === rootMessageId);
+  const canSend = Boolean(text.trim()) && !sending && Boolean(token) && Boolean(rootMessageId);
 
   const close = () => {
     const sp = new URLSearchParams(location.search);
@@ -702,14 +737,32 @@ export function ThreadPanel({
     navigate({ search: sp.toString() }, { replace: true });
   };
 
+  async function handleSend() {
+    if (!canSend || !conversationType || !conversationId) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      await api.postMessage(token, conversationType, conversationId, {
+        text: text.trim(),
+        parentMessageId: rootMessageId,
+      });
+      setText("");
+      await onSent?.();
+    } catch (e) {
+      setSendError(api.formatApiError(e));
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+    <div className="flex h-full flex-col text-[color:var(--fg)]">
+      <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-3">
         <div className="text-sm font-semibold">Тред</div>
         <button
           type="button"
           onClick={close}
-          className="rounded-lg bg-white/5 px-2 py-1 text-xs text-white/65 hover:bg-white/10"
+          className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface2)] px-2 py-1 text-xs text-[color:var(--muted)] hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--fg)]"
         >
           Закрыть
         </button>
@@ -726,14 +779,14 @@ export function ThreadPanel({
             />
           </Card>
         ) : (
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/50">
+          <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)]/60 p-4 text-sm text-[color:var(--muted)]">
             Сообщение не найдено.
           </div>
         )}
         <Card title="Ответы">
           <div className="space-y-3">
             {replies.length === 0 ? (
-              <div className="text-sm text-white/45">Пока нет ответов в треде.</div>
+              <div className="text-sm text-[color:var(--muted)]">Пока нет ответов в треде.</div>
             ) : (
               replies.map((m) => (
                 <Message
@@ -749,12 +802,39 @@ export function ThreadPanel({
         </Card>
       </div>
 
-      <div className="border-t border-white/10 p-4">
-        <textarea
-          rows={2}
-          placeholder="Ответить в треде…"
-          className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white/80 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-indigo-400/20"
-        />
+      <div className="border-t border-[color:var(--border)] bg-[color:var(--panel)] p-4 backdrop-blur">
+        {sendError && (
+          <div className="mb-2 text-xs text-[color:var(--danger)]">{sendError}</div>
+        )}
+        <div className="flex items-center gap-3 rounded-[var(--radius-pill)] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 shadow-soft">
+          <textarea
+            rows={1}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Ответить в треде…"
+            className="max-h-32 min-h-[44px] w-full resize-none bg-transparent py-2.5 text-[15px] text-[color:var(--fg)] placeholder:text-[color:var(--muted2)] focus:outline-none"
+          />
+          <button
+            type="button"
+            disabled={!canSend}
+            onClick={handleSend}
+            className={cx(
+              "inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full transition focus:outline-none focus:ring-4 focus:ring-[color:var(--accent-ring)]",
+              canSend
+                ? "cm-btn-accent shadow-none"
+                : "cursor-not-allowed bg-[color:var(--accent-soft)] text-[color:var(--muted2)]",
+            )}
+            aria-label="Отправить"
+          >
+            <IconSend className="h-5 w-5" />
+          </button>
+        </div>
       </div>
     </div>
   );

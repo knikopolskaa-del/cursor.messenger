@@ -5,6 +5,8 @@ import {
   authHeaders,
   expectValidationFields,
   loginApi,
+  postMessage,
+  uploadFile,
 } from "./helpers/api";
 
 /**
@@ -108,6 +110,40 @@ test.describe("Валидация", () => {
     expect(fields?.length).toBeGreaterThan(0);
     const text = JSON.stringify(fields).toLowerCase();
     expect(text).toMatch(/password|match|совпад/i);
+  });
+});
+
+test.describe("Сообщения API", () => {
+  test("TC-API-006: POST message с attachments", async ({ request }) => {
+    const token = await loginApi(request, TEST_EMAIL, TEST_PASSWORD);
+    const up = await uploadFile(request, token, {
+      name: "api-fixture.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("api e2e attachment"),
+    });
+    const msg = await postMessage(request, token, "channel", "c_general", {
+      text: `API attach ${Date.now()}`,
+      attachments: [
+        {
+          type: up.type || "file",
+          name: up.name,
+          url: up.url,
+          sizeBytes: up.sizeBytes,
+          mimeType: up.mimeType,
+        },
+      ],
+    });
+    expect(msg.attachments?.length).toBeGreaterThan(0);
+    expect(msg.id).toBeTruthy();
+  });
+
+  test("TC-API-007: POST message с parentMessageId", async ({ request }) => {
+    const token = await loginApi(request, TEST_EMAIL, TEST_PASSWORD);
+    const reply = await postMessage(request, token, "channel", "c_general", {
+      text: `Thread reply ${Date.now()}`,
+      parentMessageId: "m1",
+    });
+    expect(reply.parentMessageId).toBe("m1");
   });
 });
 
